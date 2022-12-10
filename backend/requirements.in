@@ -1,0 +1,10 @@
+fastapi
+httpx
+pydantic
+uvicorn
+starlette_exporter
+
+kopf
+
+pytest
+pytest-asyncio
