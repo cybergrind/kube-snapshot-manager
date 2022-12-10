@@ -5,7 +5,17 @@ const config = {
 	plugins: [sveltekit()],
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}']
-	}
+	},
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8006',
+      '/ws': {
+        target: 'ws://localhost:8006/ws',
+        ws: true
+      }
+    }
+  }
+
 };
 
 export default config;
