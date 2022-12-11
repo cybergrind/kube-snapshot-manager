@@ -8,7 +8,8 @@ PORT ?= 8006
 
 run: venv
 	$(VENV)/bin/uvicorn --factory snapshot_manager.app:get_app \
-		--reload --reload-dir backend/snapshot_manager --port $(PORT)
+		--reload --reload-dir backend/snapshot_manager \
+		--port $(PORT) --host ::0
 
 
 venv: backend/requirements.txt
