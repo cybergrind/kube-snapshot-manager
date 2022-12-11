@@ -1,6 +1,11 @@
 <script>
 	import Header from './Header.svelte';
 	import './styles.css';
+  import { onMount } from 'svelte'
+  import { connectWS } from '../stores.ts'
+  onMount(() => {
+		connectWS()
+	})
 </script>
 
 <div class="app">

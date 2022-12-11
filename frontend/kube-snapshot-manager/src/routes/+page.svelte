@@ -2,11 +2,13 @@
 	import Counter from './Counter.svelte'
 	import { onMount } from 'svelte'
 	import { runAlert } from './helpers.ts'
-	import { events, connectWS } from '../stores.ts'
+	import { events } from '../stores.ts'
+	import Volumes from '../components/Volumes.svelte'
 	onMount(() => {
 		runAlert()
-		connectWS()
 	})
+
+	let collapsed = true
 </script>
 
 <svelte:head>
@@ -16,8 +18,14 @@
 <section>
 	<h1>EKS Snapshot Manager</h1>
 
+	<Volumes />
+
 	{#if $events.length > 0}
-		<div>Last event is {JSON.stringify($events[0])}</div>
+		{#if collapsed}
+			<div on:click={() => (collapsed = false)}>Events count: {$events.length}</div>
+		{:else}
+			<div on:click={() => (collapsed = true)}>Last event is {JSON.stringify($events[0])}...</div>
+		{/if}
 	{:else}
 		<div>There are no events</div>
 	{/if}

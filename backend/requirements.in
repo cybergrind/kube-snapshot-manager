@@ -5,6 +5,7 @@ uvicorn
 starlette_exporter
 aioboto3
 websockets
+fan_tools[logging]
 
 kopf
 
