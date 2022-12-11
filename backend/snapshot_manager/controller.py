@@ -10,6 +10,7 @@ class Controller:
     def __init__(self):
         self.session = aioboto3.Session()
         self.ec2_resource = self.session.resource('ec2')
+        self._cache = None
 
     async def volume_to_dict(self, volume):
         attachments = await volume.attachments
@@ -48,11 +49,13 @@ class Controller:
         return resp
 
     async def describe_volumes(self):
-        resp = {}
-        async for volume in self.ec2.volumes.all():
-            data = await self.volume_to_dict(volume)
-            resp[volume.id] = data
-        return resp
+        if self._cache is None:
+            resp = {}
+            async for volume in self.ec2.volumes.all():
+                data = await self.volume_to_dict(volume)
+                resp[volume.id] = data
+            self._cache = resp
+        return self._cache
 
     async def startup(self):
         log.debug('startup...')

@@ -1,10 +1,11 @@
 <script>
-	import Header from './Header.svelte';
-	import './styles.css';
-  import { onMount } from 'svelte'
-  import { connectWS } from '../stores.ts'
-  onMount(() => {
+	import Header from './Header.svelte'
+	import './styles.css'
+	import { onMount } from 'svelte'
+	import { connectWS, loadLocalState } from '../stores.ts'
+	onMount(() => {
 		connectWS()
+		loadLocalState()
 	})
 </script>
 
@@ -15,9 +16,7 @@
 		<slot />
 	</main>
 
-	<footer>
-		
-	</footer>
+	<footer />
 </div>
 
 <style>
