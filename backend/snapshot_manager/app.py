@@ -4,6 +4,7 @@ from prometheus_client import Gauge
 from starlette_exporter import handle_metrics, PrometheusMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from .controller import Controller
 
 
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
@@ -22,6 +23,9 @@ async def index():
 async def ws(sock: WebSocket):
     await sock.accept()
     await sock.send_json({'type': 'echo'})
+    volumes = await Controller().describe_volumes()
+    await sock.send_json({'type': 'volumes', 'volumes': volumes})
+    msg = await sock.receive_json()
 
 
 def get_app() -> FastAPI:
