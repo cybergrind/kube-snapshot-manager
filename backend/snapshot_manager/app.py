@@ -10,7 +10,8 @@ root = APIRouter()
 root.add_route('/metrics', handle_metrics)
 
 
-@root.websocket('/ws')
+
+@root.websocket('/api/ws')
 async def ws(sock: WebSocket):
     await sock.accept()
     await sock.send_json({'type': 'echo'})

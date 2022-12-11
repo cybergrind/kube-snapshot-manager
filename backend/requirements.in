@@ -3,8 +3,13 @@ httpx
 pydantic
 uvicorn
 starlette_exporter
+aioboto3
+websockets
 
 kopf
 
 pytest
 pytest-asyncio
+
+ipython
+pip-tools
