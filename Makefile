@@ -4,7 +4,7 @@ PYTHON_BIN ?= python3.10
 PYTHON ?= $(VENV)/bin/python
 PYTHONPATH = $(VENV)/lib/$(PYTHON_BIN)/site-packages:backend
 PORT ?= 8006
-
+PHONY += build-front
 
 run: venv frontend/kube-snapshot-manager/build
 	$(VENV)/bin/uvicorn --factory snapshot_manager.app:get_app \
@@ -28,3 +28,9 @@ frontend/kube-snapshot-manager/build: frontend/kube-snapshot-manager/node_module
 
 frontend/kube-snapshot-manager/node_modules: frontend/kube-snapshot-manager/pnpm-lock.yaml
 	cd frontend/kube-snapshot-manager && pnpm install
+
+
+build-front:
+	cd frontend/kube-snapshot-manager && pnpm run build
+
+
