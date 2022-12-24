@@ -7,6 +7,7 @@ export const volumes = writable([])
 
 export const allVolumes = writable([])
 export const volumesFilter = writable('')
+export const allSnapshots = writable([])
 
 export const loadLocalState = () => {
 	const localVolumesFilter = localStorage.getItem('volumesFilter')
@@ -54,18 +55,32 @@ export const addEvent = (event) => {
 	})
 	console.log('Event: ', event)
 
-	if (event.type === 'volumes') {
-		allVolumes.update(() => {
-			console.log(event)
-			Object.entries(event.volumes).forEach(([id, volume]) => {
-				volume.name = betterName(volume)
+	switch (event.event) {
+		case 'volumes': {
+			allVolumes.update(() => {
+				console.log(event)
+				Object.entries(event.volumes).forEach(([id, volume]) => {
+					volume.name = betterName(volume)
+				})
+				console.log(event.volumes)
+				return event.volumes
 			})
-			console.log(event.volumes)
-			return event.volumes
-		})
+			break
+		}
+		case 'snapshots': {
+			allSnapshots.update(() => {
+				console.log(event)
+				return event.snapshots
+			})
+			break
+		}
+		default: {
+			console.log('Unknown event type: ', event.event, event)
+		}
 	}
 }
 
+let outMessages = []
 let _ws
 
 export const connectWS = () => {
@@ -76,4 +91,19 @@ export const connectWS = () => {
 	_ws.addEventListener('message', (event) => {
 		addEvent(JSON.parse(event.data))
 	})
+	_ws.addEventListener('open', () => {
+		console.log('Connected. OutMessages: ', outMessages)
+		outMessages.forEach((msg) => {
+			sendMsg(msg)
+		})
+		outMessages = []
+	})
+}
+
+export const sendMsg = async (msg) => {
+	if (_ws === undefined) {
+		outMessages.push(msg)
+		return
+	}
+	_ws.send(JSON.stringify(msg))
 }

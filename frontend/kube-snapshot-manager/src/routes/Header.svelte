@@ -1,10 +1,9 @@
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/stores'
 </script>
 
 <header>
-	<div class="corner">
-	</div>
+	<div class="corner" />
 </header>
 
 <style>

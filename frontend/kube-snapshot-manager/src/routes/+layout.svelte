@@ -11,8 +11,11 @@
 
 <div class="app">
 	<Header />
-
 	<main>
+		<nav>
+			<a href="/static">Volumes</a>
+			<a href="/static/snapshots">Snapshots</a>
+		</nav>
 		<slot />
 	</main>
 

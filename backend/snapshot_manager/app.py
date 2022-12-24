@@ -38,13 +38,18 @@ async def index():
 async def ws(sock: WebSocket):
     log.debug('Got connection')
     await sock.accept()
-    await sock.send_json({'type': 'echo'})
+    await sock.send_json({'event': 'echo'})
     c = CONTROLLER.get()
     volumes = await c.describe_volumes()
-    await sock.send_json({'type': 'volumes', 'volumes': volumes})
+    await sock.send_json({'event': 'volumes', 'volumes': volumes})
     while True:
         try:
             msg = await sock.receive_json()
+            if msg['event'] == 'get_snapshots':
+                snapshots = await c.describe_snapshots()
+                await sock.send_json({'event': 'snapshots', 'snapshots': snapshots})
+            else:
+                log.info(f'Unknown message: {msg}')
         except WebSocketDisconnect:
             break
 
