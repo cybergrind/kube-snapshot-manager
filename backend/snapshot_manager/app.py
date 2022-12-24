@@ -2,7 +2,7 @@ import logging
 from contextvars import ContextVar
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, WebSocket
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import Gauge
@@ -17,6 +17,7 @@ UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
 CONTROLLER = ContextVar('controller', default=Controller())
 
+Path('.log').mkdir(exist_ok=True)
 setup_logger('snapshot_manager', '.log')
 log = logging.getLogger('app')
 
@@ -41,7 +42,11 @@ async def ws(sock: WebSocket):
     c = CONTROLLER.get()
     volumes = await c.describe_volumes()
     await sock.send_json({'type': 'volumes', 'volumes': volumes})
-    msg = await sock.receive_json()
+    while True:
+        try:
+            msg = await sock.receive_json()
+        except WebSocketDisconnect:
+            break
 
 
 async def setup_controller():
