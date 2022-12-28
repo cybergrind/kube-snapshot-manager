@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Counter from './Counter.svelte'
 	import { onMount } from 'svelte'
 	import { runAlert } from './helpers.ts'
 	import { events } from '../stores.ts'
@@ -29,7 +28,6 @@
 	{:else}
 		<div>There are no events</div>
 	{/if}
-	<Counter />
 </section>
 
 <style>

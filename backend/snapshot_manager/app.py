@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextvars import ContextVar
 from pathlib import Path
@@ -5,12 +6,15 @@ from pathlib import Path
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.websockets import WebSocketState
 from prometheus_client import Gauge
+from pydantic import BaseModel
 from starlette_exporter import handle_metrics, PrometheusMiddleware
 
 from fan_tools.fan_logging import setup_logger
 
 from .controller import Controller
+from .models import SnaphotsEvent, VolumesEvent
 
 
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
@@ -40,18 +44,41 @@ async def ws(sock: WebSocket):
     await sock.accept()
     await sock.send_json({'event': 'echo'})
     c = CONTROLLER.get()
+
+    # if closed = return
+
+    out_queue = asyncio.Queue()
+    unsubscribe = c.subscribe(out_queue)
+
+    async def out_loop():
+        while True:
+            event: BaseModel = await out_queue.get()
+            if event is None:
+                return
+            if sock.client_state == WebSocketState.DISCONNECTED:
+                return
+            await sock.send_text(event.json())
+
+    loop = asyncio.create_task(out_loop())
+
     volumes = await c.describe_volumes()
-    await sock.send_json({'event': 'volumes', 'volumes': volumes})
+    await sock.send_text(VolumesEvent(volumes=volumes).json())
+
     while True:
         try:
             msg = await sock.receive_json()
             if msg['event'] == 'get_snapshots':
                 snapshots = await c.describe_snapshots()
-                await sock.send_json({'event': 'snapshots', 'snapshots': snapshots})
+                if sock.client_state == WebSocketState.DISCONNECTED:
+                    return
+                await sock.send_text(SnaphotsEvent(snapshots=snapshots).json())
             else:
                 log.info(f'Unknown message: {msg}')
         except WebSocketDisconnect:
             break
+        finally:
+            unsubscribe()
+            loop.cancel()
 
 
 async def setup_controller():
