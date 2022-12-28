@@ -9,6 +9,7 @@
 				<td>Id</td>
 				<td>Description</td>
 				<td>Size</td>
+				<td>Created</td>
 				<td>Progress</td>
 			</tr>
 		</thead>
@@ -22,6 +23,7 @@
 						<span class="tooltip-text">{snapshot.description}</span>
 					</td>
 					<td>{snapshot.size}</td>
+					<td>{snapshot.start_time}</td>
 					<td>{snapshot.progress}</td>
 				</tr>
 			{/each}
