@@ -40,15 +40,12 @@ async def index():
 
 @root.websocket('/api/ws')
 async def ws(sock: WebSocket):
-    log.debug('Got connection')
-    await sock.accept()
-    await sock.send_json({'event': 'echo'})
     c = CONTROLLER.get()
-
-    # if closed = return
-
     out_queue = asyncio.Queue()
     unsubscribe = c.subscribe(out_queue)
+
+    await sock.accept()
+    await sock.send_json({'event': 'echo'})
 
     async def out_loop():
         while True:
@@ -61,24 +58,19 @@ async def ws(sock: WebSocket):
 
     loop = asyncio.create_task(out_loop())
 
-    volumes = await c.describe_volumes()
-    await sock.send_text(VolumesEvent(volumes=volumes).json())
-
-    while True:
-        try:
+    try:
+        await c.describe_volumes()
+        while True:
             msg = await sock.receive_json()
             if msg['event'] == 'get_snapshots':
-                snapshots = await c.describe_snapshots()
-                if sock.client_state == WebSocketState.DISCONNECTED:
-                    return
-                await sock.send_text(SnaphotsEvent(snapshots=snapshots).json())
+                await c.describe_snapshots()
             else:
                 log.info(f'Unknown message: {msg}')
-        except WebSocketDisconnect:
-            break
-        finally:
-            unsubscribe()
-            loop.cancel()
+    except WebSocketDisconnect:
+        log.debug('disconnected')
+    finally:
+        unsubscribe()
+        loop.cancel()
 
 
 async def setup_controller():

@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import aioboto3
+from pydantic import BaseModel
 
-from .models import Snapshot, Snapshots, Volume, Volumes
+from .models import SnaphotsEvent, Snapshot, Snapshots, Volume, Volumes, VolumesEvent
 
 
 log = logging.getLogger('controller')
@@ -31,6 +32,11 @@ class Controller:
                 del self.subscribers[queue]
 
         return unsubscribe
+
+    def publish(self, event: BaseModel):
+        for q in self.subscribers:
+            log.debug(f'Publish to WS-queue: {event.event} / {id(q)}')
+            q.put_nowait(event)
 
     def load_cached(self):
         if self._cached_volumes is not None:
@@ -101,13 +107,12 @@ class Controller:
                 resp[volume.id] = data
             resp = Volumes(__root__=resp)
             self._cached_volumes = resp
+        self.publish(VolumesEvent(volumes=self._cached_volumes))
         return self._cached_volumes
 
     async def describe_snapshots(self) -> Snapshots:
         if not self._cached_snapshots:
             resp = {}
-            # only owned snapshots
-            log.debug('fetching snapshots...')
             async for snapshot in self.ec2.snapshots.filter(OwnerIds=['self']):
                 data = await self.snapshot_to_dict(snapshot)
                 resp[snapshot.id] = data
@@ -115,6 +120,7 @@ class Controller:
             resp = Snapshots(__root__=resp)
             self._cached_snapshots = resp
             self.save_cache()
+        self.publish(SnaphotsEvent(snapshots=self._cached_snapshots))
         return self._cached_snapshots
 
     async def snapshot_to_dict(self, snapshot) -> Snapshot:
