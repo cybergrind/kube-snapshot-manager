@@ -1,4 +1,3 @@
-
 VENV ?= venv
 PYTHON_BIN ?= python3.10
 PYTHON ?= $(VENV)/bin/python
@@ -27,7 +26,7 @@ frontend/kube-snapshot-manager/build: frontend/kube-snapshot-manager/node_module
 
 
 frontend/kube-snapshot-manager/node_modules: frontend/kube-snapshot-manager/pnpm-lock.yaml
-	cd frontend/kube-snapshot-manager && pnpm install
+	cd frontend/kube-snapshot-manager && npm install pnpm && pnpm install
 
 
 build-front:
