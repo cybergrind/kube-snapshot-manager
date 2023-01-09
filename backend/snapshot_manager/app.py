@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocketState
 from prometheus_client import Gauge
 from pydantic import BaseModel
@@ -20,6 +19,8 @@ from .models import SnaphotsEvent, VolumesEvent
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
 CONTROLLER = ContextVar('controller', default=Controller())
+STATIC = Path('./frontend/kube-snapshot-manager/build')
+INDEX = STATIC / 'index.html'
 
 Path('.log').mkdir(exist_ok=True)
 setup_logger('snapshot_manager', '.log')
@@ -35,7 +36,18 @@ root.add_route('/metrics', handle_metrics)
 
 @root.get('/')
 async def index():
-    return FileResponse(Path('./frontend/kube-snapshot-manager/build/index.html'))
+    return FileResponse(INDEX)
+
+
+@root.get('/static/{file_path:path}')
+async def get_static(file_path: str):
+    path = STATIC / file_path
+    path2 = STATIC / (file_path + '.html')
+    if path.is_file() and path.is_relative_to(STATIC):
+        return FileResponse(path)
+    elif path2.is_file() and path2.is_relative_to(STATIC):
+        return FileResponse(path2)
+    return FileResponse(INDEX)
 
 
 @root.websocket('/api/ws')
@@ -88,9 +100,4 @@ def get_app() -> FastAPI:
     app = FastAPI(on_startup=[setup_controller], on_shutdown=[shutdown_controller])
     app.include_router(root)
     app.add_middleware(PrometheusMiddleware, app_name='snapshot_manager', skip_paths=['/metrics'])
-    app.mount(
-        '/static',
-        StaticFiles(directory=Path('./frontend/kube-snapshot-manager/build')),
-        name='static',
-    )
     return app

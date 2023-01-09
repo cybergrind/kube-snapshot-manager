@@ -2,3 +2,4 @@
 /.envrc
 /.log/
 /.cache/
+/frontend/kube-snapshot-manager/package-lock.json
