@@ -1,27 +1,35 @@
 import logging
 from asyncio import Queue
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 import aioboto3
 from pydantic import BaseModel
 
 from .models import SnaphotsEvent, Snapshot, Snapshots, Volume, Volumes, VolumesEvent
+from .utils import cache
 
 
 log = logging.getLogger('controller')
-cache = Path('.cache')
-cache.mkdir(exist_ok=True)
+cache_dir = Path('.cache')
+cache_dir.mkdir(exist_ok=True)
 
 
 class Controller:
-    def __init__(self, volumes=None, snapshots=None, cache_dir=cache):
+    def __init__(self, volumes=None, snapshots=None, cache_dir=cache_dir):
         self.session = aioboto3.Session()
         self.ec2_resource = self.session.resource('ec2')
-        self._cached_volumes: Optional[Volumes] = volumes
-        self._cached_snapshots: Optional[Snapshots] = snapshots
+
         self._volumes_file = cache_dir / 'volumes.json'
+        self.aws_describe_volumes = cache(self._volumes_file, Volumes, Volumes(__root__={}))(
+            self._aws_describe_volumes
+        )
+
         self._snapshots_file = cache_dir / 'snapshots.json'
+        self.aws_describe_snapshots = cache(
+            self._snapshots_file, Snapshots, Snapshots(__root__={})
+        )(self._aws_describe_snapshots)
+
         self.subscribers = {}
 
     def subscribe(self, queue: Queue) -> Callable:
@@ -37,24 +45,6 @@ class Controller:
         for q in self.subscribers:
             log.debug(f'Publish to WS-queue: {event.event} / {id(q)}')
             q.put_nowait(event)
-
-    def load_cached(self):
-        if self._cached_volumes is not None:
-            log.debug('volumes already cached or provided')
-            return
-        if not self._volumes_file.exists():
-            log.debug(f'no cache file: {self._volumes_file}')
-            return
-        log.debug('Load from cache')
-        self._cached_volumes = Volumes.parse_raw(self._volumes_file.read_text())
-        self._cached_snapshots = Snapshots.parse_raw(self._snapshots_file.read_text())
-
-    def save_cache(self):
-        log.debug('saving cache...')
-        if self._cached_volumes:
-            self._volumes_file.write_text(self._cached_volumes.json())
-        if self._cached_snapshots:
-            self._snapshots_file.write_text(self._cached_snapshots.json())
 
     async def volume_to_dict(self, volume) -> Volume:
         attachments = await volume.attachments
@@ -99,29 +89,32 @@ class Controller:
             )
         return resp
 
+    async def _aws_describe_volumes(self) -> Volumes:
+        resp = {}
+        async for volume in self.ec2.volumes.all():
+            data = await self.volume_to_dict(volume)
+            resp[volume.id] = data
+        resp = Volumes(__root__=resp)
+        return resp
+
     async def describe_volumes(self) -> Volumes:
-        if self._cached_volumes is None:
-            resp = {}
-            async for volume in self.ec2.volumes.all():
-                data = await self.volume_to_dict(volume)
-                resp[volume.id] = data
-            resp = Volumes(__root__=resp)
-            self._cached_volumes = resp
-        self.publish(VolumesEvent(volumes=self._cached_volumes))
-        return self._cached_volumes
+        resp = await self.aws_describe_volumes()
+        self.publish(VolumesEvent(volumes=resp))
+        return resp
+
+    async def _aws_describe_snapshots(self) -> Snapshots:
+        resp = {}
+        async for snapshot in self.ec2.snapshots.filter(OwnerIds=['self']):
+            data = await self.snapshot_to_dict(snapshot)
+            resp[snapshot.id] = data
+
+        resp = Snapshots(__root__=resp)
+        return resp
 
     async def describe_snapshots(self) -> Snapshots:
-        if not self._cached_snapshots:
-            resp = {}
-            async for snapshot in self.ec2.snapshots.filter(OwnerIds=['self']):
-                data = await self.snapshot_to_dict(snapshot)
-                resp[snapshot.id] = data
-
-            resp = Snapshots(__root__=resp)
-            self._cached_snapshots = resp
-            self.save_cache()
-        self.publish(SnaphotsEvent(snapshots=self._cached_snapshots))
-        return self._cached_snapshots
+        resp = await self.aws_describe_snapshots()
+        self.publish(SnaphotsEvent(snapshots=resp))
+        return resp
 
     async def snapshot_to_dict(self, snapshot) -> Snapshot:
         tags = {tag['Key']: tag['Value'] for tag in (await snapshot.tags) or {}}
@@ -145,11 +138,9 @@ class Controller:
 
     async def startup(self):
         log.debug('startup...')
-        self.load_cached()
         self.ec2 = await self.ec2_resource.__aenter__()
         log.debug(f'EC2: {self.ec2}')
 
     async def shutdown(self):
         log.debug('shutting down...')
-        self.save_cache()
         await self.ec2_resource.__aexit__(None, None, None)

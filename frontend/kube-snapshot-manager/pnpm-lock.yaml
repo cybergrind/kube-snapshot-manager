@@ -13,7 +13,7 @@ specifiers:
   eslint: ^8.28.0
   eslint-config-prettier: ^8.5.0
   eslint-plugin-svelte3: ^4.0.0
-  pnpm: ^7.23.0
+  pnpm: ^7.25.1
   prettier: ^2.8.0
   prettier-plugin-svelte: ^2.8.1
   reconnecting-websocket: ^4.4.0
@@ -26,7 +26,7 @@ specifiers:
 
 dependencies:
   '@sveltejs/adapter-static': 1.0.0-next.49
-  pnpm: 7.23.0
+  pnpm: 7.25.1
   reconnecting-websocket: 4.4.0
 
 devDependencies:
@@ -1659,8 +1659,8 @@ packages:
     hasBin: true
     dev: true
 
-  /pnpm/7.23.0:
-    resolution: {integrity: sha512-0dJQXA+1+mo//tBvSpjb6dmLxx/UmLoeEOk/0FmOZ73GRZRNhMdarnwEenhKHNpiVXGCcvfWXJnvUMB7lp+tRQ==}
+  /pnpm/7.25.1:
+    resolution: {integrity: sha512-y/jlADVxyk+scBwI0ALRf8QoUMgrWyONnD1voZaPTBI+D+aIXXiFG9pMk3eLhvEfc0nK8KUnnbDDBTywd7WsMw==}
     engines: {node: '>=14.6'}
     hasBin: true
     dev: false
