@@ -4,11 +4,6 @@
 #
 #    pip-compile --output-file=backend/requirements.txt backend/requirements.in
 #
---index-url https://pypi.python.org/simple/
---trusted-host pypi.python.org
---trusted-host pypi.org
---trusted-host files.pythonhosted.org
-
 aioboto3==10.2.0
     # via -r backend/requirements.in
 aiobotocore[boto3]==2.4.1
@@ -61,7 +56,7 @@ exceptiongroup==1.0.4
     # via pytest
 executing==1.2.0
     # via stack-data
-fan-tools[logging]==3.12.1
+fan-tools[logging]==3.13.0
     # via -r backend/requirements.in
 fastapi==0.88.0
     # via -r backend/requirements.in
@@ -182,6 +177,7 @@ traitlets==5.7.0
     #   matplotlib-inline
 typing-extensions==4.4.0
     # via
+    #   fan-tools
     #   kopf
     #   pydantic
 urllib3==1.26.13

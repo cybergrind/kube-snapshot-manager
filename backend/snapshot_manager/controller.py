@@ -6,8 +6,9 @@ from typing import Callable
 import aioboto3
 from pydantic import BaseModel
 
+from fan_tools.python import cache_async as cache
+
 from .models import SnaphotsEvent, Snapshot, Snapshots, Volume, Volumes, VolumesEvent
-from .utils import cache
 
 
 log = logging.getLogger('controller')
