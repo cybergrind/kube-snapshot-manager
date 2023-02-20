@@ -5,7 +5,7 @@ uvicorn
 starlette_exporter
 aioboto3
 websockets
-fan_tools[logging]~=3.13.0
+fan_tools[logging]~=4.0.0
 
 kopf
 

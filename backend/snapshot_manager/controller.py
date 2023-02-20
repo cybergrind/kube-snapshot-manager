@@ -22,12 +22,12 @@ class Controller:
         self.ec2_resource = self.session.resource('ec2')
 
         self._volumes_file = cache_dir / 'volumes.json'
-        self.aws_describe_volumes = cache(self._volumes_file, Volumes, Volumes(__root__={}))(
-            self._aws_describe_volumes
-        )
+        self.aws_describe_volumes = cache[type(Volumes)](
+            self._volumes_file, Volumes, Volumes(__root__={})
+        )(self._aws_describe_volumes)
 
         self._snapshots_file = cache_dir / 'snapshots.json'
-        self.aws_describe_snapshots = cache(
+        self.aws_describe_snapshots = cache[type(Snapshots)](
             self._snapshots_file, Snapshots, Snapshots(__root__={})
         )(self._aws_describe_snapshots)
 
