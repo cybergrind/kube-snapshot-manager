@@ -2,7 +2,7 @@
 	import Header from './Header.svelte'
 	import './styles.css'
 	import { onMount } from 'svelte'
-	import { connectWS, loadLocalState } from '../stores.ts'
+	import { connectWS, loadLocalState, kubeClusters } from '../stores.ts'
 	onMount(() => {
 		connectWS()
 		loadLocalState()
@@ -15,6 +15,9 @@
 		<nav>
 			<a href="/static">Volumes</a>
 			<a href="/static/snapshots">Snapshots</a>
+			{#each $kubeClusters as cluster}
+				<a href="/static/kube/{cluster}">{cluster}</a>
+			{/each}
 		</nav>
 		<slot />
 	</main>
@@ -23,6 +26,11 @@
 </div>
 
 <style>
+	nav a {
+		padding-right: 5px;
+		border-left: 1px solid #000;
+		padding-left: 5px;
+	}
 	.app {
 		display: flex;
 		flex-direction: column;

@@ -13,6 +13,7 @@ emacs_py_project = backend/
 [frontend/**.{js,jsx,ts,tsx,svelte}]
 indent_style = space
 indent_size = 2
+js_formatter = prettier
 
 
 [Makefile]

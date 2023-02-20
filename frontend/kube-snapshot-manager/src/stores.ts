@@ -8,6 +8,7 @@ export const volumes = writable([])
 export const allVolumes = writable([])
 export const volumesFilter = writable('')
 export const allSnapshots = writable([])
+export const kubeClusters = writable(['kube1'])
 
 export const loadLocalState = () => {
 	const localVolumesFilter = localStorage.getItem('volumesFilter')
