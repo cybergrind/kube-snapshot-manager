@@ -32,4 +32,7 @@ frontend/kube-snapshot-manager/node_modules: frontend/kube-snapshot-manager/pnpm
 build-front:
 	cd frontend/kube-snapshot-manager && pnpm run build
 
+dev:
+	cd frontend/kube-snapshot-manager && pnpm run dev
+
 

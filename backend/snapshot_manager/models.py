@@ -42,3 +42,15 @@ class Volumes(BaseModel):
 class VolumesEvent(BaseModel):
     event: str = 'volumes'
     volumes: Volumes
+
+
+class PV(BaseModel):
+    name: str
+    capacity: str
+    access_modes: list[str]
+    reclaim_policy: str
+    volume_mode: str
+    status: str
+    claim: str
+    storage_class: str
+    volume: str

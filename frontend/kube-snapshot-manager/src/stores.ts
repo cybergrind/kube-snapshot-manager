@@ -1,6 +1,9 @@
 import { writable } from 'svelte/store'
+
 import ReconnectingWebSocket from 'reconnecting-websocket'
 import { betterName } from './lib/volumes.ts'
+import type { PV } from './types.ts'
+import type { Writable } from 'svelte/store'
 
 export const events = writable([])
 export const volumes = writable([])
@@ -8,7 +11,9 @@ export const volumes = writable([])
 export const allVolumes = writable([])
 export const volumesFilter = writable('')
 export const allSnapshots = writable([])
+
 export const kubeClusters = writable(['kube1'])
+export const PVs: Writable<Array<PV>> = writable([])
 
 export const loadLocalState = () => {
 	const localVolumesFilter = localStorage.getItem('volumesFilter')
@@ -72,6 +77,12 @@ export const addEvent = (event) => {
 			allSnapshots.update(() => {
 				console.log(event)
 				return event.snapshots
+			})
+			break
+		}
+		case 'pvs': {
+			PVs.update(() => {
+				return event.pvs
 			})
 			break
 		}
