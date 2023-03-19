@@ -23,7 +23,8 @@ config = Config()
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
 CONTROLLER = ContextVar('controller', default=Controller())
-KUBE_CONTROLLER = ContextVar('controller', default=KubeController(config.KUBECONFIG))
+KUBE_CONTROLLER1 = ContextVar('controller', default=KubeController(config.KUBECONFIG1))
+KUBE_CONTROLLER2 = ContextVar('controller', default=KubeController(config.KUBECONFIG2))
 STATIC = Path('./frontend/kube-snapshot-manager/build')
 INDEX = STATIC / 'index.html'
 
@@ -82,9 +83,14 @@ async def ws(sock: WebSocket):
             if msg['event'] == 'get_snapshots':
                 await c.describe_snapshots()
             if msg['event'] == 'get_pvs':
-                kc = KUBE_CONTROLLER.get()
+                cluster = msg.get('cluster', 'kube1')
+                kc = KUBE_CONTROLLER2.get() if cluster == 'kube2' else KUBE_CONTROLLER1.get()
                 pvs = await kc.get_pvs()
-                await sock.send_text(json.dumps({'event': 'pvs', 'pvs': [pv.dict() for pv in pvs]}))
+                await sock.send_text(
+                    json.dumps(
+                        {'event': 'pvs', 'pvs': [pv.dict() for pv in pvs], 'cluster': cluster}
+                    )
+                )
             else:
                 log.info(f'Unknown message: {msg}')
     except WebSocketDisconnect:
@@ -98,15 +104,20 @@ async def setup_controllers():
     c = CONTROLLER.get()
     await c.startup()
     log.debug(f'{CONTROLLER=}')
-    kc = KUBE_CONTROLLER.get()
-    await kc.startup()
+    kc1 = KUBE_CONTROLLER1.get()
+    await kc1.startup()
+
+    kc2 = KUBE_CONTROLLER2.get()
+    await kc2.startup()
 
 
 async def shutdown_controllers():
     c = CONTROLLER.get()
     await c.shutdown()
-    kc = KUBE_CONTROLLER.get()
-    await kc.shutdown()
+    kc1 = KUBE_CONTROLLER1.get()
+    await kc1.shutdown()
+    kc2 = KUBE_CONTROLLER2.get()
+    await kc2.shutdown()
 
 
 def get_app() -> FastAPI:

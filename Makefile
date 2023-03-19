@@ -5,6 +5,7 @@ PYTHONPATH = $(VENV)/lib/$(PYTHON_BIN)/site-packages:backend
 PORT ?= 8006
 PHONY += build-front
 
+
 run: venv frontend/kube-snapshot-manager/build
 	$(VENV)/bin/uvicorn --factory snapshot_manager.app:get_app \
 		--reload --reload-dir backend/snapshot_manager \

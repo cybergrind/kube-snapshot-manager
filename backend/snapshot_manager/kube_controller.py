@@ -6,6 +6,7 @@ from kubernetes_asyncio.client.api_client import ApiClient
 
 from .models import PV
 
+
 log = logging.getLogger(__name__)
 
 
@@ -35,7 +36,9 @@ class KubeController:
         pv_list = await v1.list_persistent_volume()
         out = []
         for pv in pv_list.items:
-            log.debug(f'pv={pv.metadata.name} status={pv.status.phase} pvc={pv.spec.claim_ref.name}')
+            log.debug(
+                f'pv={pv.metadata.name} status={pv.status.phase} pvc={pv.spec.claim_ref.name}'
+            )
             out.append(
                 PV(
                     name=pv.metadata.name,
