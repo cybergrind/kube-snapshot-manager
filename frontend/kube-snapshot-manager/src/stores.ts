@@ -12,8 +12,8 @@ export const allVolumes = writable([])
 export const volumesFilter = writable('')
 export const allSnapshots = writable([])
 
-export const kubeClusters = writable(['kube1'])
-export const PVs: Writable<Array<PV>> = writable([])
+export const kubeClusters = writable(['kube1', 'kube2'])
+export const PVs: Writable<Record<string, Array<PV>>> = writable({})
 
 export const loadLocalState = () => {
 	const localVolumesFilter = localStorage.getItem('volumesFilter')
@@ -81,8 +81,8 @@ export const addEvent = (event) => {
 			break
 		}
 		case 'pvs': {
-			PVs.update(() => {
-				return event.pvs
+			PVs.update(old => {
+        return {...old, [event.cluster]: event.pvs}
 			})
 			break
 		}

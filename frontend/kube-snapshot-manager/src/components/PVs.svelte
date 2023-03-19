@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { PVs } from '../stores.ts'
+  export let slug
+
+  $: pvs = $PVs[slug] || {}
 </script>
 
 <section>
-	<h4>PV [{Object.keys($PVs).length}]</h4>
+	<h4>PV [{Object.keys(pvs).length}] {slug} </h4>
 	<table>
 		<thead>
 			<tr>
@@ -16,7 +19,7 @@
 			</tr>
 		</thead>
 		<tbody>
-			{#each Object.entries($PVs) as [id, pv]}
+			{#each Object.entries(pvs) as [id, pv]}
 				<tr>
 					<td>{pv.name}</td>
           <td>{pv.capacity}</td>

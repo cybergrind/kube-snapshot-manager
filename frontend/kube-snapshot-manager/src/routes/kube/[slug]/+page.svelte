@@ -6,13 +6,13 @@
 
   let slug
   $: slug = data.slug
-  sendMsg({ event: 'get_pvs', cluster: slug})
+  $: sendMsg({ event: 'get_pvs', cluster: slug})
 
 </script>
 
 <section class="app">
 	<h1>Kube {slug} </h1>
-  <PVs />
+  <PVs {slug} />
 </section>
 
 <style>
