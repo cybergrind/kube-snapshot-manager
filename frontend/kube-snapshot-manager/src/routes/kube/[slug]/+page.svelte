@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types'
   import PVs from '../../../components/PVs.svelte'
-  import { sendMsg } from '../../../stores.ts'
+  import { sendMsg } from '../../../stores'
   export let data: PageData
 
   let slug

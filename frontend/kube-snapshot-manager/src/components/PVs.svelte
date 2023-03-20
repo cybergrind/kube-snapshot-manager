@@ -1,12 +1,17 @@
 <script lang="ts">
-	import { PVs } from '../stores.ts'
-  export let slug
+	import { PVs, sendMsg } from '../stores.ts'
+	export let slug
 
-  $: pvs = $PVs[slug] || {}
+	$: pvs = $PVs[slug] || {}
+
+	async function doSnapshot(pvid) {
+		console.log('do snapshot: ', pvid)
+		return await sendMsg({ event: 'create_snapshot', pvid: pvid, cluster: slug })
+	}
 </script>
 
 <section>
-	<h4>PV [{Object.keys(pvs).length}] {slug} </h4>
+	<h4>PV [{Object.keys(pvs).length}] {slug}</h4>
 	<table>
 		<thead>
 			<tr>
@@ -15,20 +20,24 @@
 				<th>Status</th>
 				<th>StorageClass</th>
 				<th>Volume</th>
-        <th>Claim</th>
-        <th>Policy</th>
+				<th>Claim</th>
+				<th>Policy</th>
+				<th>Actions</th>
 			</tr>
 		</thead>
 		<tbody>
 			{#each Object.entries(pvs) as [id, pv]}
 				<tr>
 					<td>{pv.name}</td>
-          <td>{pv.capacity}</td>
-          <td>{pv.status}</td>
-          <td>{pv.storage_class}</td>
-          <td>{pv.volume}</td>
-          <td>{pv.claim}</td>
-          <td>{pv.reclaim_policy}</td>
+					<td>{pv.capacity}</td>
+					<td>{pv.status}</td>
+					<td>{pv.storage_class}</td>
+					<td>{pv.volume}</td>
+					<td>{pv.claim}</td>
+					<td>{pv.reclaim_policy}</td>
+					<td>
+						<button on:click={async () => doSnapshot(pv.name)}> Snapshot </button>
+					</td>
 				</tr>
 			{/each}
 		</tbody>

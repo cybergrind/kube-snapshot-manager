@@ -75,7 +75,7 @@ export const addEvent = (event) => {
 		}
 		case 'snapshots': {
 			allSnapshots.update(() => {
-				console.log(event)
+				console.log('snapshots: ', event)
 				return event.snapshots
 			})
 			break

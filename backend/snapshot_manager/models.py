@@ -46,6 +46,7 @@ class VolumesEvent(BaseModel):
 
 class PV(BaseModel):
     name: str
+    namespace: str
     capacity: str
     access_modes: list[str]
     reclaim_policy: str

@@ -1,5 +1,9 @@
 <script lang="ts">
-	import { allSnapshots } from '../stores.ts'
+	import { allSnapshots, sendMsg } from '../stores.ts'
+
+	async function deleteSnapshot(snap_id: string) {
+		await sendMsg({ event: 'delete_snapshot', snap_id })
+	}
 </script>
 
 <section>
@@ -11,6 +15,7 @@
 				<td>Size</td>
 				<td>Created</td>
 				<td>Progress</td>
+				<td>Actions</td>
 			</tr>
 		</thead>
 		<tbody>
@@ -19,12 +24,15 @@
 					<td>{snapshot.id}</td>
 
 					<td class="tooltip">
-						{snapshot.description.slice(0, 16)}...
+						{snapshot.description.slice(0, 46)}...
 						<span class="tooltip-text">{snapshot.description}</span>
 					</td>
 					<td>{snapshot.size}</td>
 					<td>{snapshot.start_time}</td>
 					<td>{snapshot.progress}</td>
+					<td>
+						<button on:click={() => deleteSnapshot(snapshot.id)}>Delete</button>
+					</td>
 				</tr>
 			{/each}
 		</tbody>

@@ -12,24 +12,22 @@ from pydantic import BaseModel
 from snapshot_manager.kube_controller import KubeController
 from starlette_exporter import handle_metrics, PrometheusMiddleware
 
-from fan_tools.fan_logging import setup_logger
-
 from .config import Config
-from .controller import Controller
+from .controller import AWSController
 from .models import SnaphotsEvent, VolumesEvent
 
 
 config = Config()
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
-CONTROLLER = ContextVar('controller', default=Controller())
+CONTROLLER = ContextVar('controller', default=AWSController())
 KUBE_CONTROLLER1 = ContextVar('controller', default=KubeController(config.KUBECONFIG1))
 KUBE_CONTROLLER2 = ContextVar('controller', default=KubeController(config.KUBECONFIG2))
 STATIC = Path('./frontend/kube-snapshot-manager/build')
 INDEX = STATIC / 'index.html'
 
 Path('.log').mkdir(exist_ok=True)
-setup_logger('snapshot_manager', '.log')
+
 log = logging.getLogger('app')
 
 for name in ['aioboto3', 'aiobotocore', 'kubernetes_asyncio']:
@@ -54,6 +52,16 @@ async def get_static(file_path: str):
     elif path2.is_file() and path2.is_relative_to(STATIC):
         return FileResponse(path2)
     return FileResponse(INDEX)
+
+
+def get_kube_controller(event, default_cluster=None) -> KubeController:
+    cluster = event.get('cluster', default_cluster)
+    if cluster == 'kube1':
+        return KUBE_CONTROLLER1.get()
+    elif cluster == 'kube2':
+        return KUBE_CONTROLLER2.get()
+    else:
+        raise ValueError(f'Unknown cluster {event=}')
 
 
 @root.websocket('/api/ws')
@@ -81,16 +89,26 @@ async def ws(sock: WebSocket):
         while True:
             msg = await sock.receive_json()
             if msg['event'] == 'get_snapshots':
+                if msg.get('force'):
+                    c.aws_describe_snapshots.reset_cache()
                 await c.describe_snapshots()
-            if msg['event'] == 'get_pvs':
+            elif msg['event'] == 'get_pvs':
                 cluster = msg.get('cluster', 'kube1')
-                kc = KUBE_CONTROLLER2.get() if cluster == 'kube2' else KUBE_CONTROLLER1.get()
+                kc = get_kube_controller(msg)
                 pvs = await kc.get_pvs()
                 await sock.send_text(
                     json.dumps(
                         {'event': 'pvs', 'pvs': [pv.dict() for pv in pvs], 'cluster': cluster}
                     )
                 )
+            elif msg['event'] == 'create_snapshot':
+                kc = get_kube_controller(msg)
+                log.debug(f'got {kc=}')
+                await kc.create_pv_snapshot(msg['pvid'], f'snapshot-{msg["pvid"]}')
+            elif msg['event'] == 'delete_snapshot':
+                kc = get_kube_controller(msg, 'kube1')
+                # await kc.get_snapshot_by_snapid(msg['snap_id'])
+                await kc.delete_snapshot_by_snapid(msg['snap_id'])
             else:
                 log.info(f'Unknown message: {msg}')
     except WebSocketDisconnect:

@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { volumes, volumesFilter } from '../stores.ts'
+
+  function createSnapshot() {
+  }
 </script>
 
 <section>
