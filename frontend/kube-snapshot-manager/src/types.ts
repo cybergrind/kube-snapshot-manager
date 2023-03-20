@@ -1,11 +1,11 @@
 export interface PV {
 	name: string
 	capacity: string
-	accessModes: string[]
-	reclaimPolicy: string
-	volumeMode: string
+	access_modes: string[]
+	reclaim_policy: string
+	volume_mode: string
 	status: string
 	claim: string
-	storageClass: string
+	storage_class: string
 	volume: string
 }

@@ -16,6 +16,7 @@
 				<th>StorageClass</th>
 				<th>Volume</th>
         <th>Claim</th>
+        <th>Policy</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -24,9 +25,10 @@
 					<td>{pv.name}</td>
           <td>{pv.capacity}</td>
           <td>{pv.status}</td>
-          <td>{pv.storageClass}</td>
+          <td>{pv.storage_class}</td>
           <td>{pv.volume}</td>
           <td>{pv.claim}</td>
+          <td>{pv.reclaim_policy}</td>
 				</tr>
 			{/each}
 		</tbody>
