@@ -21,8 +21,8 @@ config = Config()
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
 CONTROLLER = ContextVar('controller', default=AWSController())
-KUBE_CONTROLLER1 = ContextVar('controller', default=KubeController(config.KUBECONFIG1))
-KUBE_CONTROLLER2 = ContextVar('controller', default=KubeController(config.KUBECONFIG2))
+KUBE_CONTROLLER1 = ContextVar('controller', default=KubeController(config.KUBECONFIG1, 'kube1'))
+KUBE_CONTROLLER2 = ContextVar('controller', default=KubeController(config.KUBECONFIG2, 'kube2'))
 STATIC = Path('./frontend/kube-snapshot-manager/build')
 INDEX = STATIC / 'index.html'
 
@@ -124,9 +124,11 @@ async def setup_controllers():
     log.debug(f'{CONTROLLER=}')
     kc1 = KUBE_CONTROLLER1.get()
     await kc1.startup()
+    c.add_cluster(kc1)
 
     kc2 = KUBE_CONTROLLER2.get()
     await kc2.startup()
+    c.add_cluster(kc2)
 
 
 async def shutdown_controllers():

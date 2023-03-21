@@ -1,7 +1,7 @@
 import logging
 from asyncio import Queue
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 import aioboto3
 from pydantic import BaseModel
@@ -9,6 +9,10 @@ from pydantic import BaseModel
 from fan_tools.python import cache_async as cache
 
 from .models import SnaphotsEvent, Snapshot, Snapshots, Volume, Volumes, VolumesEvent
+
+
+if TYPE_CHECKING:
+    from snapshot_manager.kube_controller import KubeController
 
 
 log = logging.getLogger('controller')
@@ -22,16 +26,20 @@ class AWSController:
         self.ec2_resource = self.session.resource('ec2')
 
         self._volumes_file = cache_dir / 'volumes.json'
-        self.aws_describe_volumes = cache[type(Volumes)](
-            self._volumes_file, Volumes, {}
-        )(self._aws_describe_volumes)
+        self.aws_describe_volumes = cache[type(Volumes)](self._volumes_file, Volumes, {})(
+            self._aws_describe_volumes
+        )
 
         self._snapshots_file = cache_dir / 'snapshots.json'
-        self.aws_describe_snapshots = cache[type(Snapshots)](
-            self._snapshots_file, Snapshots, {}
-        )(self._aws_describe_snapshots)
+        self.aws_describe_snapshots = cache[type(Snapshots)](self._snapshots_file, Snapshots, {})(
+            self._aws_describe_snapshots
+        )
 
         self.subscribers = {}
+        self.clusters = {}
+
+    def add_cluster(self, cluster: 'KubeController'):
+        self.clusters[cluster.name] = cluster
 
     def subscribe(self, queue: Queue) -> Callable:
         self.subscribers[queue] = queue
@@ -91,6 +99,7 @@ class AWSController:
         return resp
 
     async def _aws_describe_volumes(self) -> Volumes:
+        log.debug('AWS describe volumes')
         resp = {}
         async for volume in self.ec2.volumes.all():
             data = await self.volume_to_dict(volume)
@@ -104,10 +113,18 @@ class AWSController:
         return resp
 
     async def _aws_describe_snapshots(self) -> Snapshots:
+        log.debug('AWS describe snapshots')
         resp = {}
+        snaps_by_cluster = {}
+        for name, cluster in self.clusters.items():
+            snaps_by_cluster[name] = await cluster.snapshots_by_snapid()
+
         async for snapshot in self.ec2.snapshots.filter(OwnerIds=['self']):
             data = await self.snapshot_to_dict(snapshot)
             resp[snapshot.id] = data
+            for name, snaps in snaps_by_cluster.items():
+                if snapshot.id in snaps:
+                    data.clusters.append(f'{name}::{snaps[snapshot.id]["deletion_policy"]}')
 
         resp = Snapshots(__root__=resp)
         return resp

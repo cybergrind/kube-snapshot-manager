@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 
 
 class KubeController:
-    def __init__(self, config_path: Path):
+    def __init__(self, config_path: Path, name: str):
+        self.name = name
         assert config_path.exists(), f'Config file {config_path} does not exist'
         self.config_path = config_path
 
@@ -73,7 +74,6 @@ class KubeController:
         crd = client.CustomObjectsApi(self.api)
         ns = pv.namespace
         snapshot_class = 'ebs-csi-aws'
-        description = 'kube-controller-snapshot'
         await crd.create_namespaced_custom_object(
             group='snapshot.storage.k8s.io',
             version='v1',
@@ -86,41 +86,48 @@ class KubeController:
                 'spec': {
                     'volumeSnapshotClassName': snapshot_class,
                     'source': {'persistentVolumeClaimName': pv.claim},
-                    'description': description,
                 },
             },
         )
+
+    async def snapshots_by_snapid(self):
+        """
+        get all snaphots content and map
+        snap_id => VolumeSnapshot
+        """
+        crd = client.CustomObjectsApi(self.api)
+        contents = await crd.list_cluster_custom_object(
+            group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshotcontents'
+        )
+        snapshots = await crd.list_cluster_custom_object(
+            group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshots'
+        )
+        # snapshot['status']['boundVolumeSnapshotContentName'] == content['metadata']['name']
+        # snap_id == content['status']['snapshotHandle']
+        # snap_id => snapshot
+        name_to_content = {}
+        for content in contents['items']:
+            name_to_content[content['metadata']['name']] = content
+        snap_id_to_snapshot = {}
+        for snapshot in snapshots['items']:
+            content = name_to_content[snapshot['status']['boundVolumeSnapshotContentName']]
+            snap_id_to_snapshot[content['status']['snapshotHandle']] = snapshot
+            snapshot['content'] = content
+            snapshot['deletion_policy'] = content['spec']['deletionPolicy']
+        return snap_id_to_snapshot
 
     async def get_snapshot_by_snapid(self, snap_id: str):
         """
         snap_id: snapshot id in AWS, should be in content
         """
         log.debug(f'Getting snapshot {snap_id}')
-        crd = client.CustomObjectsApi(self.api)
-        content = await self.get_snap_content_by_handle(snap_id)
-        if not content:
-            log.info(f'Content not found for {snap_id}')
-            return
-
-        # list for all namespaces
-        snapshots = await crd.list_cluster_custom_object(
-            group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshots'
-        )
-        for snapshot in snapshots['items']:
-            if snapshot['status']['boundVolumeSnapshotContentName'] == content['metadata']['name']:
-                log.debug(f'Got snapshot: {snapshot=}')
-                return snapshot
-
-    async def get_snap_content_by_handle(self, snap_id: str):
-        crd = client.CustomObjectsApi(self.api)
-        snap_contents = await crd.list_cluster_custom_object(
-            group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshotcontents'
-        )
-        for content in snap_contents['items']:
-            if content['status']['snapshotHandle'] == snap_id:
-                return content
+        snap_id_to_snapshot = await self.snapshots_by_snapid()
+        return snap_id_to_snapshot.get(snap_id)
 
     async def delete_snapshot_by_snapid(self, snap_id: str):
+        """
+        snap_id: snapshot id in AWS, should be in content
+        """
         snap = await self.get_snapshot_by_snapid(snap_id)
         if not snap:
             log.info(f'Snapshot {snap_id} not found')
