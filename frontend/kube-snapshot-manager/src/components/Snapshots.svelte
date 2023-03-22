@@ -22,7 +22,7 @@
     <tbody>
       {#each Object.entries($allSnapshots) as [id, snapshot]}
         <tr>
-          <td>{snapshot.id}</td>
+          <td><a href="/static/snapshots/{snapshot.id}/">{snapshot.id}</a></td>
 
           <td class="tooltip">
             {snapshot.description.slice(0, 46)}...
