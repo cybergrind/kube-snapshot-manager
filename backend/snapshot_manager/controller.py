@@ -124,7 +124,7 @@ class AWSController:
             resp[snapshot.id] = data
             for name, snaps in snaps_by_cluster.items():
                 if snapshot.id in snaps:
-                    data.clusters.append(f'{name}::{snaps[snapshot.id]["deletion_policy"]}')
+                    data.clusters.append({'cluster': name, 'snapshot': snaps[snapshot.id]})
 
         resp = Snapshots(__root__=resp)
         return resp

@@ -10,7 +10,7 @@ class Snapshot(BaseModel):
     progress: str
     description: str
     tags: dict
-    clusters: list[str] = []
+    clusters: list[dict] = []
 
 
 class Snapshots(BaseModel):

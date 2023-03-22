@@ -109,6 +109,11 @@ async def ws(sock: WebSocket):
                 kc = get_kube_controller(msg, 'kube1')
                 # await kc.get_snapshot_by_snapid(msg['snap_id'])
                 await kc.delete_snapshot_by_snapid(msg['snap_id'])
+            elif msg['event'] == 'snapshot_toggle_deletion_policy':
+                kc = get_kube_controller(msg, 'kube1')
+                await kc.snapshot_toggle_deletion_policy(msg['snap_id'])
+                c.aws_describe_snapshots.reset_cache()
+                await c.describe_snapshots()
             else:
                 log.info(f'Unknown message: {msg}')
     except WebSocketDisconnect:

@@ -142,5 +142,34 @@ class KubeController:
             body=client.V1DeleteOptions(),
         )
 
+    async def snapshot_toggle_deletion_policy(self, snap_id: str):
+        """
+        snap_id: snapshot id in AWS, should be in content
+        """
+        snap = await self.get_snapshot_by_snapid(snap_id)
+        if not snap:
+            log.info(f'Snapshot {snap_id} not found')
+            return
+        crd = client.CustomObjectsApi(self.api)
+        # get current VolumeSnapshotContent
+        name = snap['content']['metadata']['name']
+        content = await crd.get_cluster_custom_object(
+            group='snapshot.storage.k8s.io',
+            version='v1',
+            plural='volumesnapshotcontents',
+            name=name,
+        )
+        new_policy = 'Retain' if content['spec']['deletionPolicy'] == 'Delete' else 'Delete'
+        log.debug(f'Patch: {name} => {snap["metadata"]["namespace"]} => {new_policy}')
+        # application/merge-patch+json
+        crd.api_client.select_header_content_type = lambda x: 'application/merge-patch+json'
+        await crd.patch_cluster_custom_object(
+            group='snapshot.storage.k8s.io',
+            version='v1',
+            plural='volumesnapshotcontents',
+            name=name,
+            body={'spec': {'deletionPolicy': new_policy}},
+        )
+
     async def shutdown(self):
         pass

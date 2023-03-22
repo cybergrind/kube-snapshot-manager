@@ -31,7 +31,7 @@
           <td>{snapshot.size}</td>
           <td>{snapshot.start_time}</td>
           <td>{snapshot.progress}</td>
-          <td>{snapshot.clusters}</td>
+          <td>{snapshot.clusters.map(x => `${x.cluster}`).join(', ')}</td>
           <td>
             <button on:click={() => deleteSnapshot(snapshot.id)}>Delete</button>
           </td>
