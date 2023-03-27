@@ -14,8 +14,8 @@
   $: snapshot = $allSnapshots[slug]
   $: console.log(snapshot)
 
-  async function toggleDeletionPolicy(cluster) {
-    await sendMsg({event: 'snapshot_toggle_deletion_policy', cluster, snap_id: snapshot.id})
+  async function toggleDeletionPolicy(cluster: string) {
+    await sendMsg({ event: 'snapshot_toggle_deletion_policy', cluster, snap_id: snapshot.id })
   }
 </script>
 
@@ -46,7 +46,11 @@
           <table class="nested">
             <tr>
               <td>Deletion policy: </td>
-              <td on:click={async () => { await toggleDeletionPolicy(c.cluster)}}>{c.snapshot.deletion_policy}</td>
+              <td
+                on:click={async () => {
+                  await toggleDeletionPolicy(c.cluster)
+                }}>{c.snapshot.deletion_policy}</td
+              >
             </tr>
           </table>
         </td>
@@ -59,7 +63,7 @@
   div {
     margin: 0.2rem;
   }
-  table.main  td {
+  table.main td {
     padding: 0.2rem;
     border: 1px solid #444;
   }

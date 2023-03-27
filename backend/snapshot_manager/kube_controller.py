@@ -3,12 +3,27 @@ from pathlib import Path
 
 from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.api_client import ApiClient
+from kubernetes_asyncio.client.exceptions import ApiException
 
 from .models import PV
 
 
 log = logging.getLogger(__name__)
 
+
+
+def refresh_on_401(func):
+    async def wrapper(self, *args, **kwargs):
+        try:
+            return await func(self, *args, **kwargs)
+        except ApiException as e:
+            if e.status == 401:
+                log.info("Refreshing token")
+                await self.refresh_token()
+                return await func(self, *args, **kwargs)
+            raise
+
+    return wrapper
 
 class KubeController:
     def __init__(self, config_path: Path, name: str):
@@ -31,6 +46,10 @@ class KubeController:
                 f'ip={pod.status.pod_ip} name={pod.metadata.name}, namespace={pod.metadata.namespace}'
             )
         await self.get_pvs()
+
+    async def refresh_token(self):
+        await self.api_client.__aexit__(None, None, None)
+        await self.api_client.__aenter__()
 
     async def get_pvs(self) -> list[PV]:
         v1 = client.CoreV1Api(self.api)
@@ -116,6 +135,7 @@ class KubeController:
             snapshot['deletion_policy'] = content['spec']['deletionPolicy']
         return snap_id_to_snapshot
 
+    @refresh_on_401
     async def get_snapshot_by_snapid(self, snap_id: str):
         """
         snap_id: snapshot id in AWS, should be in content

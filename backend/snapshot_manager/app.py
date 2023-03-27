@@ -89,6 +89,8 @@ async def ws(sock: WebSocket):
         while True:
             msg = await sock.receive_json()
             if msg['event'] == 'get_snapshots':
+                # handle kubernetes_asyncio.client.exceptions.ApiException
+                # Reason: Unauthorized
                 if msg.get('force'):
                     c.aws_describe_snapshots.reset_cache()
                 await c.describe_snapshots()
