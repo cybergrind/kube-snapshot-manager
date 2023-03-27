@@ -11,10 +11,15 @@ from .models import PV
 log = logging.getLogger(__name__)
 
 
-
 def refresh_on_401(func):
     async def wrapper(self, *args, **kwargs):
         try:
+            return await func(self, *args, **kwargs)
+        # handle RuntimeError("Session is closed")
+        except RuntimeError as e:
+            if "Session is closed" in str(e):
+                await self.refresh()
+                return await func(self, *args, **kwargs)
             return await func(self, *args, **kwargs)
         except ApiException as e:
             if e.status == 401:
@@ -24,6 +29,7 @@ def refresh_on_401(func):
             raise
 
     return wrapper
+
 
 class KubeController:
     def __init__(self, config_path: Path, name: str):
