@@ -39,6 +39,17 @@
       <td>Size</td>
       <td>{snapshot.size}</td>
     </tr>
+    <tr>
+      <td>Tags</td>
+      <td>
+        {#each Object.entries(snapshot.tags) as [name, value]}
+          <tr>
+            <td>{name}</td>
+            <td>{value}</td>
+          </tr>
+        {/each}
+      </td>
+    </tr>
     {#each snapshot.clusters as c}
       <tr>
         <td>{c.cluster}</td>
@@ -49,8 +60,10 @@
               <td
                 on:click={async () => {
                   await toggleDeletionPolicy(c.cluster)
-                }}>{c.snapshot.deletion_policy}</td
+                }}
               >
+                {c.snapshot.deletion_policy}
+              </td>
             </tr>
           </table>
         </td>
