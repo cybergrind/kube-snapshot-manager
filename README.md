@@ -13,8 +13,9 @@ aws ec2 describe-snapshots --owner-ids self
 ### TODO
 
 * snapshot details:
- * should allow changing retention policy
- * kube: should allow deletion of VolumeSnapshot
+ * events: after VolumeSnapshot created => wait for snapshot created
+ * events: triggered creation / progress != 100 => loop with refresh + fill tags
+ * events: after creation / progress become 100 => trigger refresh cache/ui
  * aws: should allow deletion of snapshot (if there is attached VolumeSnapshot - it should be deleted first)
 
 
