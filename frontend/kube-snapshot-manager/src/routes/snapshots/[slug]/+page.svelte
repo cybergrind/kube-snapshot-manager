@@ -17,6 +17,10 @@
   async function toggleDeletionPolicy(cluster: string) {
     await sendMsg({ event: 'snapshot_toggle_deletion_policy', cluster, snap_id: snapshot.id })
   }
+  async function fillTags(cluster: string) {
+    const description = snapshot.description
+    await sendMsg({ event: 'snapshot_fill_tags', cluster, snap_id: snapshot.id, description })
+  }
 </script>
 
 <h1>Snapshot Info</h1>
@@ -65,6 +69,20 @@
                 {c.snapshot.deletion_policy}
               </td>
             </tr>
+            {#if !snapshot.tags.namespace}
+            <tr>
+              <td />
+              <td>
+                <button
+                  on:click={async () => {
+                    await fillTags(c.cluster)
+                  }}
+                >
+                  Fill tags
+                </button>
+              </td>
+            </tr>
+            {/if}
           </table>
         </td>
       </tr>

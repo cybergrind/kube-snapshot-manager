@@ -141,6 +141,18 @@ class KubeController:
             snapshot['deletion_policy'] = content['spec']['deletionPolicy']
         return snap_id_to_snapshot
 
+    async def pv_by_volume(self):
+        """
+        get all: pvc[spec][csi][volumeHandle] => pvc
+        """
+        v1 = client.CoreV1Api(self.api)
+        pvs = await v1.list_persistent_volume()
+        pv_by_volume = {}
+        for pv in pvs.items:
+            print(f'{pv.spec=}')
+            pv_by_volume[pv.spec.csi.volume_handle] = pv
+        return pv_by_volume
+
     @refresh_on_401
     async def get_snapshot_by_snapid(self, snap_id: str):
         """

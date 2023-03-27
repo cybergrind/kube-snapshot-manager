@@ -129,7 +129,13 @@ class AWSController:
         resp = Snapshots(__root__=resp)
         return resp
 
-    async def describe_snapshots(self) -> Snapshots:
+    async def set_tags(self, snap_id: str, tags: dict[str, str]):
+        snapshot = await self.ec2.Snapshot(snap_id)
+        await snapshot.create_tags(Tags=[{'Key': k, 'Value': v} for k, v in tags.items()])
+
+    async def describe_snapshots(self, reset=False) -> Snapshots:
+        if reset:
+            self.aws_describe_snapshots.reset_cache()
         resp = await self.aws_describe_snapshots()
         self.publish(SnaphotsEvent(snapshots=resp))
         return resp

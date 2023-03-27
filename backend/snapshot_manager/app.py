@@ -89,11 +89,23 @@ async def ws(sock: WebSocket):
         while True:
             msg = await sock.receive_json()
             if msg['event'] == 'get_snapshots':
-                # handle kubernetes_asyncio.client.exceptions.ApiException
-                # Reason: Unauthorized
-                if msg.get('force'):
-                    c.aws_describe_snapshots.reset_cache()
-                await c.describe_snapshots()
+                await c.describe_snapshots(reset=msg.get('force'))
+            elif msg['event'] == 'snapshot_fill_tags':
+                description = msg['description']
+                volume_id = description.split()[-1]
+                assert volume_id.startswith('vol-')
+
+                kc = get_kube_controller(msg)
+                pv_by_volume = await kc.pv_by_volume()
+                pv = pv_by_volume.get(volume_id)
+                if not pv:
+                    log.warning(f'No PV for {volume_id=}')
+                    continue
+                claim_ref = pv.spec.claim_ref
+                tags = {'namespace': claim_ref.namespace, 'name': claim_ref.name}
+                await c.set_tags(msg['snap_id'], tags)
+                await c.describe_snapshots(reset=True)
+
             elif msg['event'] == 'get_pvs':
                 cluster = msg.get('cluster', 'kube1')
                 kc = get_kube_controller(msg)

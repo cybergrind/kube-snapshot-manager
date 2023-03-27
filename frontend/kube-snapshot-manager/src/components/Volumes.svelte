@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { volumes, volumesFilter } from '../stores.ts'
+	import { volumes, volumesFilter, sendMsg } from '../stores.ts'
 
-  function createSnapshot() {
+  async function createSnapshot() {
   }
 </script>
 
