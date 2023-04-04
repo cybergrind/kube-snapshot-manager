@@ -12,13 +12,13 @@ log = logging.getLogger(__name__)
 
 
 def refresh_on_401(func):
-    async def wrapper(self, *args, **kwargs):
+    async def wrapper(self: 'KubeController', *args, **kwargs):
         try:
             return await func(self, *args, **kwargs)
         # handle RuntimeError("Session is closed")
         except RuntimeError as e:
             if "Session is closed" in str(e):
-                await self.refresh()
+                await self.refresh_token()
                 return await func(self, *args, **kwargs)
             return await func(self, *args, **kwargs)
         except ApiException as e:
