@@ -58,7 +58,7 @@ exceptiongroup==1.1.1
     # via pytest
 executing==1.2.0
     # via stack-data
-fan-tools[logging]==4.0.0
+fan-tools[logging]==4.0.1
     # via -r backend/requirements.in
 fastapi==0.95.0
     # via -r backend/requirements.in
