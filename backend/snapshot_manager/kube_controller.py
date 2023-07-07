@@ -65,6 +65,10 @@ class KubeController:
             log.debug(
                 f'pv={pv.metadata.name} status={pv.status.phase} pvc={pv.spec.claim_ref.name}'
             )
+            if not pv.spec.csi:
+                volume_handle = pv.spec.aws_elastic_block_store.volume_id
+            else:
+                volume_handle = pv.spec.csi.volume_handle
             out.append(
                 PV(
                     name=pv.metadata.name,
@@ -76,7 +80,8 @@ class KubeController:
                     status=pv.status.phase,
                     claim=pv.spec.claim_ref.name if pv.spec.claim_ref else '',
                     storage_class=pv.spec.storage_class_name,
-                    volume=pv.spec.csi.volume_handle,
+                    # eg. volume_handle=vol-041085bbe47495fc7
+                    volume=volume_handle,
                 )
             )
         return out
