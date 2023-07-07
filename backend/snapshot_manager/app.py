@@ -13,6 +13,7 @@ from snapshot_manager.kube_controller import KubeController
 from starlette_exporter import handle_metrics, PrometheusMiddleware
 
 from .config import Config
+from .context_vars import CONTROLLER, KUBE_CONTROLLER1, KUBE_CONTROLLER2
 from .controller import AWSController
 from .models import SnaphotsEvent, VolumesEvent
 
@@ -20,9 +21,11 @@ from .models import SnaphotsEvent, VolumesEvent
 config = Config()
 UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
-CONTROLLER = ContextVar('controller', default=AWSController())
-KUBE_CONTROLLER1 = ContextVar('controller', default=KubeController(config.KUBECONFIG1, 'kube1'))
-KUBE_CONTROLLER2 = ContextVar('controller', default=KubeController(config.KUBECONFIG2, 'kube2'))
+
+CONTROLLER.set(AWSController())
+KUBE_CONTROLLER1.set(KubeController(config.KUBECONFIG1, 'kube1'))
+KUBE_CONTROLLER2.set(KubeController(config.KUBECONFIG2, 'kube2'))
+
 STATIC = Path('./frontend/kube-snapshot-manager/build')
 INDEX = STATIC / 'index.html'
 
