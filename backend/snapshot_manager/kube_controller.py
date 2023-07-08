@@ -126,9 +126,16 @@ class KubeController:
         snap_id => VolumeSnapshot
         """
         crd = client.CustomObjectsApi(self.api)
-        contents = await crd.list_cluster_custom_object(
-            group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshotcontents'
-        )
+        # check if 'snaphot.storage.k8s.io' is installed
+        try:
+            contents = await crd.list_cluster_custom_object(
+                group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshotcontents'
+            )
+        except ApiException as e:
+            if e.status == 404:
+                log.info('snapshot.storage.k8s.io not installed')
+                return {}
+            raise
         snapshots = await crd.list_cluster_custom_object(
             group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshots'
         )
