@@ -5,37 +5,26 @@ from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.api_client import ApiClient
 from kubernetes_asyncio.client.exceptions import ApiException
 
+from snapshot_manager.generic_controller import Controller
 from .models import PV
 
 
 log = logging.getLogger(__name__)
 
 
-def refresh_on_401(func):
-    async def wrapper(self: 'KubeController', *args, **kwargs):
-        try:
-            return await func(self, *args, **kwargs)
-        # handle RuntimeError("Session is closed")
-        except RuntimeError as e:
-            if "Session is closed" in str(e):
-                await self.refresh_token()
-                return await func(self, *args, **kwargs)
-            return await func(self, *args, **kwargs)
-        except ApiException as e:
-            if e.status == 401:
-                log.info("Refreshing token")
-                await self.refresh_token()
-                return await func(self, *args, **kwargs)
-            raise
-
-    return wrapper
-
-
-class KubeController:
+class KubeController(Controller):
     def __init__(self, config_path: Path, name: str):
         self.name = name
         assert config_path.exists(), f'Config file {config_path} does not exist'
         self.config_path = config_path
+        super().__init__()
+
+    async def loop_iteration(self):
+        v1 = client.CoreV1Api(self.api)
+        # get cluster status
+        nodes = await v1.list_node()
+        for node in nodes.items:
+            log.debug(f'node={node.metadata.name} kubelet={node.status.node_info.kubelet_version}')
 
     async def startup(self):
         self.config = client.Configuration()
@@ -53,9 +42,9 @@ class KubeController:
             )
         await self.get_pvs()
 
-    async def refresh_token(self):
+    async def on_error(self, e):
         await self.api_client.__aexit__(None, None, None)
-        await self.api_client.__aenter__()
+        await self.startup()
 
     async def get_pvs(self) -> list[PV]:
         v1 = client.CoreV1Api(self.api)
@@ -165,7 +154,6 @@ class KubeController:
             pv_by_volume[pv.spec.csi.volume_handle] = pv
         return pv_by_volume
 
-    @refresh_on_401
     async def get_snapshot_by_snapid(self, snap_id: str):
         """
         snap_id: snapshot id in AWS, should be in content

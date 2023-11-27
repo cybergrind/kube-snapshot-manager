@@ -145,11 +145,11 @@ async def setup_controllers():
     await c.startup()
     log.debug(f'{CONTROLLER=}')
     kc1 = KUBE_CONTROLLER1.get()
-    await kc1.startup()
+    await kc1.start()
     c.add_cluster(kc1)
 
     kc2 = KUBE_CONTROLLER2.get()
-    await kc2.startup()
+    await kc2.start()
     c.add_cluster(kc2)
 
 
@@ -157,9 +157,9 @@ async def shutdown_controllers():
     c = CONTROLLER.get()
     await c.shutdown()
     kc1 = KUBE_CONTROLLER1.get()
-    await kc1.shutdown()
+    await kc1.stop()
     kc2 = KUBE_CONTROLLER2.get()
-    await kc2.shutdown()
+    await kc2.stop()
 
 
 def get_app() -> FastAPI:
