@@ -9,6 +9,7 @@ max_line_length = 100
 indent_style = space
 indent_size = 4
 emacs_py_project = backend/
+emacs_py_ruff_formatting = true
 
 [frontend/**.{js,jsx,ts,tsx,svelte}]
 indent_style = space
