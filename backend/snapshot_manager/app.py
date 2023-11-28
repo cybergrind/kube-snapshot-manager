@@ -4,7 +4,7 @@ import logging
 from contextvars import ContextVar
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.websockets import WebSocketState
 from prometheus_client import Gauge
@@ -162,8 +162,17 @@ async def shutdown_controllers():
     await kc2.stop()
 
 
+async def errors_loggin_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        log.exception(e)
+        raise
+
+
 def get_app() -> FastAPI:
     app = FastAPI(on_startup=[setup_controllers], on_shutdown=[shutdown_controllers])
     app.include_router(root)
     app.add_middleware(PrometheusMiddleware, app_name='snapshot_manager', skip_paths=['/metrics'])
+    app.middleware('http')(errors_loggin_middleware)
     return app

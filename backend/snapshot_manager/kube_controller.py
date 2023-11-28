@@ -21,18 +21,16 @@ class KubeController(Controller):
 
     async def loop_iteration(self):
         v1 = client.CoreV1Api(self.api)
-        # get cluster status
         nodes = await v1.list_node()
         for node in nodes.items:
-            log.debug(f'node={node.metadata.name} kubelet={node.status.node_info.kubelet_version}')
+            log.debug(f'{self.name}: node={node.metadata.name} kubelet={node.status.node_info.kubelet_version}')
 
     async def startup(self):
         self.config = client.Configuration()
         await config.load_kube_config(
             config_file=str(self.config_path), client_configuration=self.config
         )
-        self.api_client = ApiClient(self.config)
-        self.api = await self.api_client.__aenter__()
+        self.api = ApiClient(self.config)
 
         v1 = client.CoreV1Api(self.api)
         pods = await v1.list_namespaced_pod('octo-prod')
@@ -43,7 +41,7 @@ class KubeController(Controller):
         await self.get_pvs()
 
     async def on_error(self, e):
-        await self.api_client.__aexit__(None, None, None)
+        await self.api.close()
         await self.startup()
 
     async def get_pvs(self) -> list[PV]:

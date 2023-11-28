@@ -8,11 +8,11 @@ log = logging.getLogger(__name__)
 
 
 class Controller:
-    def __init__(self, retry_timeout=5, loop_interval=60):
+    def __init__(self, retry_timeout=5, loop_interval=60, loop_timeout=120):
         self.stopping = False
         self.retry_timeout = retry_timeout
         self.loop_interval = loop_interval
-        self.stopping = False
+        self.loop_timeout = loop_timeout
         self.active_loop: Optional[Task] = None
 
     async def startup(self):
@@ -33,14 +33,15 @@ class Controller:
     def get_loop_interval(self):
         return self.loop_interval
 
-    def on_error(self, exception):
+    async def on_error(self, exception) -> Optional[bool]:
         """
         return True if shoult stop
         do reinitialization here if required
         """
-        log.exception(f'Exception in loop: {self}')
+        log.exception(f'Exception in loop: {self} {exception}')
 
     async def start(self):
+        self.stopping = False
         await self.startup()
         self.active_loop = asyncio.ensure_future(self.inner_loop())
         return self.active_loop
@@ -51,17 +52,26 @@ class Controller:
             self.active_loop.cancel()
             await self.active_loop
 
+    async def _call_on_error(self, error) -> bool:
+        should_stop = False
+        try:
+            should_stop = bool(await self.on_error(error))
+        except Exception as e:
+            log.exception(f'Exception in on_error handler: {e}')
+        return should_stop
+
     async def inner_loop(self):
         try:
             while not self.stopping:
                 try:
-                    await self.loop_iteration()
+                    await asyncio.wait_for(self.loop_iteration(), timeout=self.loop_timeout)
                     await asyncio.sleep(self.get_loop_interval())
                 except CancelledError:
-                    log.info(f'Cancelled loop: {self}')
+                    log.debug(f'Cancelled loop: {self}')
                     break
                 except Exception as e:
-                    should_stop = self.on_error(e)
+                    log.debug('check should_stop')
+                    should_stop = await self._call_on_error(e)
                     if should_stop:
                         log.info(f'Stopping loop because of error: {self}')
                         break
@@ -70,5 +80,8 @@ class Controller:
                     await asyncio.sleep(timeout)
         finally:
             # shielded
+            log.debug(f'Shielded shutdown in finally {self.stopping=}')
+            if self.active_loop:
+                log.debug(f'is_cancelled={self.active_loop.cancelled()}')
             self.stopping = True
             await shield(self.shutdown())
