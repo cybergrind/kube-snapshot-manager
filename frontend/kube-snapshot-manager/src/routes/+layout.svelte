@@ -18,6 +18,7 @@
 			{#each $kubeClusters as cluster}
 				<a href="/static/kube/{cluster}">{cluster}</a>
 			{/each}
+      <a href="/static/debug">Debug</a>
 		</nav>
 		<slot />
 	</main>
