@@ -1,4 +1,3 @@
-
 ```bash
 
 aws ec2 describe-volumes
@@ -19,4 +18,18 @@ aws ec2 describe-snapshots --owner-ids self
  * aws: should allow deletion of snapshot (if there is attached VolumeSnapshot - it should be deleted first)
 
 
+* generic controller
+ * better timeouts - support dynamic trigger. eg. change implementation to asyncio.Event + asyncio.sleep
+ * current controller state (start, callback, on_error, sleep, stopping, stopped)
+ * log with controller name
+ * simple controller factory: name, callback
 
+* small state machine
+
+* debug screen
+ * dynamically register debug values (number of messages, current timeout) + buttons (restart, etc)
+ * add svelte component to debug values
+ * hierarchically group display values and buttons
+ * maybe historical values (+graph)
+ * timing for loop iteration
+ * timing since last iteration
