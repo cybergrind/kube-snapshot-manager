@@ -23,6 +23,8 @@ aws ec2 describe-snapshots --owner-ids self
  * current controller state (start, callback, on_error, sleep, stopping, stopped)
  * log with controller name
  * simple controller factory: name, callback
+ * metrics
+ * generic alerts
 
 * small state machine
 

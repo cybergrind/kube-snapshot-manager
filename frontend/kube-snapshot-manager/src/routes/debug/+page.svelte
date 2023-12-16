@@ -1,21 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { sendMsg, debugInfo } from '../../stores'
+  import DebugSection from '../../components/DebugSection.svelte'
+
+  $: sectionNames = debugInfo.names
+  $: sections = debugInfo.sections
 
   onMount(async () => {
     await sendMsg({ event: 'get_debug' })
   })
 </script>
 
-<svelte:head>
-  <title>EKS Snapshot Manager</title>
-</svelte:head>
-
 <section>
   <h1>Debug</h1>
 
-  {#each $debugInfo.sections as sectionName}
-    <h2>{sectionName}</h2>
+  {#each $sectionNames as name}
+    <h2>{name}</h2>
+    <DebugSection {name} section={$sections[name]} />
   {/each}
 </section>
 

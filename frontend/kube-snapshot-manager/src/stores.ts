@@ -26,7 +26,7 @@ export const debugInfo: DebugInfo = {
       buttons: writable<Record<string, any>>({ trigger: { cluster: 'kube2' } })
     }
   }),
-})
+}
 
 export const kubeClusters = writable(['kube1', 'kube2'])
 export const PVs: Writable<Record<string, Array<PV>>> = writable({})
