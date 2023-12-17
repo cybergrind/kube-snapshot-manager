@@ -10,9 +10,9 @@ const config = {
     proxy: {
       '/api': 'http://localhost:8006',
       '/api/ws': {
-        target: 'ws://localhost:8006/',
-        ws: true
-      }
+        target: 'ws://xx:8006',
+        ws: true,
+      },
     }
   }
 

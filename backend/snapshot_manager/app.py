@@ -3,6 +3,7 @@ import json
 import logging
 from contextvars import ContextVar
 from pathlib import Path
+import datetime
 
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -69,7 +70,19 @@ def get_kube_controller(event, default_cluster=None) -> KubeController:
 
 @root.websocket('/api/ws')
 async def ws(sock: WebSocket):
+    try:
+        await ws_accept(sock)
+    except Exception as e:
+        log.exception(f'WS error: {e}')
+
+async def ws_accept(sock: WebSocket):
+    log.info('WS')
     c = CONTROLLER.get()
+    if not c:
+        log.warning('AWS not configured')
+        await sock.close()
+        return
+
     out_queue = asyncio.Queue()
     unsubscribe = c.subscribe(out_queue)
 
@@ -131,6 +144,31 @@ async def ws(sock: WebSocket):
                 await kc.snapshot_toggle_deletion_policy(msg['snap_id'])
                 c.aws_describe_snapshots.reset_cache()
                 await c.describe_snapshots()
+            elif msg['event'] == 'get_debug':
+                kc1 = KUBE_CONTROLLER1.get()
+                if not kc1:
+                    await sock.send_text(json.dumps({'error': 'kube1 not configured'}))
+                    continue
+                kc2 = KUBE_CONTROLLER2.get()
+                if not kc2:
+                    await sock.send_text(json.dumps({'error': 'kube2 not configured'}))
+                    continue
+                data = {
+                    'event': 'debug_info',
+                    'names': ['kube1', 'kube2'],
+                    'sections': {
+                        'kube1': {
+                            'values': {'state': str(kc1.state), 'updated': datetime.datetime.now().isoformat()},
+                            'buttons': {},
+                        },
+                        'kube2': {
+                            'values': {'state': str(kc2.state)},
+                            'buttons': {},
+                        },
+                    },
+                }
+                log.debug(f'debug {data=}')
+                await sock.send_text(json.dumps(data))
             else:
                 log.info(f'Unknown message: {msg}')
     except WebSocketDisconnect:
