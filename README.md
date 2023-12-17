@@ -25,6 +25,7 @@ aws ec2 describe-snapshots --owner-ids self
  * simple controller factory: name, callback
  * metrics
  * generic alerts
+ * nesting controllers -> parent can show ill children
 
 * small state machine
 

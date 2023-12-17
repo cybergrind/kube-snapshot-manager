@@ -18,6 +18,27 @@ class State(enum.Enum):
     STOPPED = 'stopped'
 
 
+class Timer:
+    def __init__(self, parent):
+        self.parent = parent
+        self.wait_event = asyncio.Event()
+        self.wait_task: Optional[Task] = None
+
+    def wait(self, timeout: int | float):
+        if self.wait_task and not self.wait_task.done():
+            raise RuntimeError('Already waiting')
+
+        self.wait_event.clear()
+        self.wait_task = asyncio.create_task(self._wait(timeout))
+
+        return self.wait_event.wait()
+
+    async def _wait(self, timeout: int | float):
+        await asyncio.sleep(timeout)
+        if not self.wait_event.is_set():
+            self.wait_event.set()
+
+
 class Controller:
     stop_states = {State.STOPPING, State.STOPPED}
 
