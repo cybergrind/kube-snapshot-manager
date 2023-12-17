@@ -1,10 +1,9 @@
 import { writable } from 'svelte/store'
 
 import ReconnectingWebSocket from 'reconnecting-websocket'
-import { betterName } from './lib/volumes.ts'
-import type { PV, DebugSection } from './types.ts'
+import { betterName } from './lib/volumes'
+import type { PV, DebugSection, DebugInfo } from './types'
 import type { Writable } from 'svelte/store'
-import type { DebugInfo } from './types'
 
 export const events = writable([])
 export const volumes = writable([])
@@ -13,19 +12,18 @@ export const allVolumes = writable([])
 export const volumesFilter = writable('')
 export const allSnapshots = writable<Record<string, any>>({})
 
-// button sends {event: debugButton, action: <NAME>, **kwargs} 
+// button sends {event: debugButton, action: <NAME>, **kwargs}
 export const debugInfo: DebugInfo = {
-  names: writable<string[]>(['kube1', 'kube2']),
   sections: writable<Record<string, DebugSection>>({
     kube1: {
-      values: writable<Record<string, any>>({ state: 'SLEEP' }),
-      buttons: writable<Record<string, any>>({ trigger: { cluster: 'kube1' } })
+      values: { state: 'SLEEP' },
+      buttons: { trigger: { cluster: 'kube1' } }
     },
     kube2: {
-      values: writable<Record<string, any>>({ state: 'SLEEP' }),
-      buttons: writable<Record<string, any>>({ trigger: { cluster: 'kube2' } })
+      values: { state: 'SLEEP' },
+      buttons: { trigger: { cluster: 'kube2' } }
     }
-  }),
+  })
 }
 
 export const kubeClusters = writable(['kube1', 'kube2'])
@@ -100,6 +98,10 @@ export const addEvent = (event) => {
         return { ...old, [event.cluster]: event.pvs }
       })
       break
+    }
+    case 'debug_info': {
+      const { sections } = event
+      debugInfo.sections.update(() => sections)
     }
     default: {
       console.log('Unknown event type: ', event.event, event)

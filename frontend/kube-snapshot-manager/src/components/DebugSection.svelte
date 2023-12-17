@@ -12,7 +12,7 @@
 <section>
 <h2>{name}</h2>
 <div>
-  {#each Object.entries($values) as [key, value]}
+  {#each Object.entries(values) as [key, value]}
     <div>{key} => {value}</div>
   {/each}
 </div>

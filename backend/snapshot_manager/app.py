@@ -75,6 +75,7 @@ async def ws(sock: WebSocket):
     except Exception as e:
         log.exception(f'WS error: {e}')
 
+
 async def ws_accept(sock: WebSocket):
     log.info('WS')
     c = CONTROLLER.get()
@@ -158,11 +159,17 @@ async def ws_accept(sock: WebSocket):
                     'names': ['kube1', 'kube2'],
                     'sections': {
                         'kube1': {
-                            'values': {'state': str(kc1.state), 'updated': datetime.datetime.now().isoformat()},
+                            'values': {
+                                'state': str(kc1.state),
+                                'updated': datetime.datetime.now().isoformat(),
+                            },
                             'buttons': {},
                         },
                         'kube2': {
-                            'values': {'state': str(kc2.state)},
+                            'values': {
+                                'state': str(kc2.state),
+                                'updated': datetime.datetime.now().isoformat(),
+                            },
                             'buttons': {},
                         },
                     },

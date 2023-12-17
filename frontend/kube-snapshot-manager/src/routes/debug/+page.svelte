@@ -3,7 +3,6 @@
   import { sendMsg, debugInfo } from '../../stores'
   import DebugSection from '../../components/DebugSection.svelte'
 
-  $: sectionNames = debugInfo.names
   $: sections = debugInfo.sections
 
   onMount(async () => {
@@ -14,9 +13,9 @@
 <section>
   <h1>Debug</h1>
 
-  {#each $sectionNames as name}
+  {#each Object.entries($sections) as [name, section]}
     <h2>{name}</h2>
-    <DebugSection {name} section={$sections[name]} />
+    <DebugSection {name} {section} />
   {/each}
 </section>
 

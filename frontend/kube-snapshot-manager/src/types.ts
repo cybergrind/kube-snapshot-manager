@@ -16,11 +16,10 @@ export interface PV {
 export declare type DebugButton = Record<string, any>
 
 export interface DebugSection {
-  values: Writable<Record<string, string>>,
-  buttons: Writable<Record<string, DebugButton>,
+  values: Record<string, string>,
+  buttons: Record<string, DebugButton>,
 }
 
 export interface DebugInfo {
-  names: Writable<string[]>,
   sections: Writable<Record<string, DebugSection>>,
 }
