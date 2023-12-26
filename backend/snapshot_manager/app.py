@@ -68,12 +68,68 @@ def get_kube_controller(event, default_cluster=None) -> KubeController:
         raise ValueError(f'Unknown cluster {event=}')
 
 
+CANCELLATIONS = ContextVar[None | list[asyncio.Task]]('cancellations', default=None)
+HAS_DEBUG_LOOP = ContextVar[bool]('has_debug_loop', default=False)
+
+
 @root.websocket('/api/ws')
 async def ws(sock: WebSocket):
     try:
         await ws_accept(sock)
     except Exception as e:
         log.exception(f'WS error: {e}')
+    finally:
+        cancellations = CANCELLATIONS.get()
+        if cancellations:
+            for cancellation in cancellations:
+                try:
+                    log.debug(f'WS cancelling {cancellation}')
+                    cancellation.cancel()
+                except Exception as e:
+                    log.exception(f'WS cancellation error: {e}')
+        CANCELLATIONS.set(None)
+
+
+async def refresh_debug(sock: WebSocket):
+    try:
+        while True:
+            await send_debug(sock)
+            await asyncio.sleep(5)
+    except (WebSocketDisconnect, asyncio.CancelledError) as e:
+        log.debug(f'WS debug cancelled: {e}')
+
+
+async def send_debug(sock: WebSocket):
+    kc1 = KUBE_CONTROLLER1.get()
+    if not kc1:
+        await sock.send_text(json.dumps({'error': 'kube1 not configured'}))
+        return
+    kc2 = KUBE_CONTROLLER2.get()
+    if not kc2:
+        await sock.send_text(json.dumps({'error': 'kube2 not configured'}))
+        return
+    data = {
+        'event': 'debug_info',
+        'names': ['kube1', 'kube2'],
+        'sections': {
+            'kube1': {
+                'values': {
+                    'state': str(kc1.state),
+                    'updated': datetime.datetime.now().isoformat(),
+                },
+                'buttons': {},
+            },
+            'kube2': {
+                'values': {
+                    'state': str(kc2.state),
+                    'updated': datetime.datetime.now().isoformat(),
+                },
+                'buttons': {},
+            },
+        },
+    }
+    log.debug(f'debug {data=}')
+    await sock.send_text(json.dumps(data))
 
 
 async def ws_accept(sock: WebSocket):
@@ -146,36 +202,12 @@ async def ws_accept(sock: WebSocket):
                 c.aws_describe_snapshots.reset_cache()
                 await c.describe_snapshots()
             elif msg['event'] == 'get_debug':
-                kc1 = KUBE_CONTROLLER1.get()
-                if not kc1:
-                    await sock.send_text(json.dumps({'error': 'kube1 not configured'}))
+                if HAS_DEBUG_LOOP.get():
                     continue
-                kc2 = KUBE_CONTROLLER2.get()
-                if not kc2:
-                    await sock.send_text(json.dumps({'error': 'kube2 not configured'}))
-                    continue
-                data = {
-                    'event': 'debug_info',
-                    'names': ['kube1', 'kube2'],
-                    'sections': {
-                        'kube1': {
-                            'values': {
-                                'state': str(kc1.state),
-                                'updated': datetime.datetime.now().isoformat(),
-                            },
-                            'buttons': {},
-                        },
-                        'kube2': {
-                            'values': {
-                                'state': str(kc2.state),
-                                'updated': datetime.datetime.now().isoformat(),
-                            },
-                            'buttons': {},
-                        },
-                    },
-                }
-                log.debug(f'debug {data=}')
-                await sock.send_text(json.dumps(data))
+                HAS_DEBUG_LOOP.set(True)
+                task = asyncio.create_task(refresh_debug(sock))
+                cancellations = CANCELLATIONS.get() or []
+                CANCELLATIONS.set(cancellations + [task])
             else:
                 log.info(f'Unknown message: {msg}')
     except WebSocketDisconnect:
