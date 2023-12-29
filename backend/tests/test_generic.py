@@ -1,6 +1,6 @@
 import pytest
 import time
-from snapshot_manager.generic_controller import Timer
+from snapshot_manager.generic.controller import Timer
 
 
 class TestTimer:

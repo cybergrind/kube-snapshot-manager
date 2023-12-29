@@ -5,7 +5,7 @@ from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.api_client import ApiClient
 from kubernetes_asyncio.client.exceptions import ApiException
 
-from snapshot_manager.generic_controller import Controller
+from snapshot_manager.generic.controller import Controller
 from .models import PV
 
 
