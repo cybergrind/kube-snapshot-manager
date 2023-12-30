@@ -202,11 +202,15 @@ async def ws_accept(sock: WebSocket):
                     continue
                 HAS_DEBUG_LOOP.set(True)
                 task = asyncio.create_task(refresh_debug(sock))
+                debug_global = DEBUG_GLOBAL.get()
+
                 def _send_debug(data):
                     asyncio.create_task(send_debug(sock, data))
+
                 def _cancel_notify():
-                    DEBUG_GLOBAL.get().remove_notify(_send_debug)
-                DEBUG_GLOBAL.get().add_notify(_send_debug)
+                    debug_global.remove_notify(_send_debug)
+
+                debug_global.add_notify(_send_debug)
                 cancellations = CANCELLATIONS.get() or []
 
                 CANCELLATIONS.set(cancellations + [task.cancel, _cancel_notify])

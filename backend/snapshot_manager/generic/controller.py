@@ -43,7 +43,7 @@ class Timer:
 class Controller:
     stop_states = {State.STOPPING, State.STOPPED}
 
-    def __init__(self, retry_timeout=5, loop_interval=6, loop_timeout=120, debug=False):
+    def __init__(self, retry_timeout=5, loop_interval=60, loop_timeout=120, debug=False):
         self.state = State.STOPPED
         self.retry_timeout = retry_timeout
         self.loop_interval = loop_interval

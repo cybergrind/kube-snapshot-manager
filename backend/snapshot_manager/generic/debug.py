@@ -1,6 +1,10 @@
 from contextvars import ContextVar
 from typing import Any, Dict
 from datetime import datetime
+import logging
+
+
+log = logging.getLogger(__name__)
 
 
 class DebugObject:
@@ -22,8 +26,7 @@ class DebugObject:
 
     def track(self, name, value):
         self.values[name] = value
-        if self.parent:
-            self.notify_change()
+        self.notify_change()
 
     def serialize(self) -> Dict[str, Any]:
         out = {}
@@ -51,10 +54,19 @@ class DebugObject:
     def remove_notify(self, cb):
         self.change_callbacks.remove(cb)
 
+    def __repr__(self) -> str:
+        return f'<DebugObject (name={self.name} id={id(self)})'
+
     def notify_change(self):
+        if self.parent:
+            return self.parent.notify_change()
+
         data = self.serialize()
         for cb in self.change_callbacks:
-            cb(data)
+            try:
+                cb(data)
+            except Exception as e:
+                log.exception(f'Exception in debug callback: {e}')
 
 
 DEBUG_GLOBAL = ContextVar('debug_global', default=DebugObject(None))
