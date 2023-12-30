@@ -13,17 +13,19 @@ log = logging.getLogger(__name__)
 
 
 class KubeController(Controller):
-    def __init__(self, config_path: Path, name: str):
+    def __init__(self, config_path: Path, name: str, **kwargs):
         self.name = name
         assert config_path.exists(), f'Config file {config_path} does not exist'
         self.config_path = config_path
-        super().__init__()
+        super().__init__(**kwargs)
 
     async def loop_iteration(self):
         v1 = client.CoreV1Api(self.api)
         nodes = await v1.list_node()
         for node in nodes.items:
-            log.debug(f'{self.name}: node={node.metadata.name} kubelet={node.status.node_info.kubelet_version}')
+            log.debug(
+                f'{self.name}: node={node.metadata.name} kubelet={node.status.node_info.kubelet_version}'
+            )
 
     async def startup(self):
         self.config = client.Configuration()

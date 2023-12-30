@@ -4,6 +4,7 @@ import logging
 from contextvars import ContextVar
 from pathlib import Path
 import datetime
+from typing import Callable
 
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -12,6 +13,7 @@ from prometheus_client import Gauge
 from pydantic import BaseModel
 from snapshot_manager.kube_controller import KubeController
 from starlette_exporter import handle_metrics, PrometheusMiddleware
+from snapshot_manager.generic.debug import DEBUG_GLOBAL
 
 from .config import Config
 from .context_vars import CONTROLLER, KUBE_CONTROLLER1, KUBE_CONTROLLER2
@@ -24,8 +26,9 @@ UP = Gauge('up', 'Snapshot Manager is up', ['app'])
 UP.labels(app='snapshot_manager').set(1)
 
 CONTROLLER.set(AWSController())
-KUBE_CONTROLLER1.set(KubeController(config.KUBECONFIG1, 'kube1'))
-KUBE_CONTROLLER2.set(KubeController(config.KUBECONFIG2, 'kube2'))
+debug_global = DEBUG_GLOBAL.get()
+KUBE_CONTROLLER1.set(KubeController(config.KUBECONFIG1, 'kube1', debug=debug_global))
+KUBE_CONTROLLER2.set(KubeController(config.KUBECONFIG2, 'kube2', debug=debug_global))
 
 STATIC = Path('./frontend/kube-snapshot-manager/build')
 INDEX = STATIC / 'index.html'
@@ -68,7 +71,7 @@ def get_kube_controller(event, default_cluster=None) -> KubeController:
         raise ValueError(f'Unknown cluster {event=}')
 
 
-CANCELLATIONS = ContextVar[None | list[asyncio.Task]]('cancellations', default=None)
+CANCELLATIONS = ContextVar[None | list[Callable]]('cancellations', default=None)
 HAS_DEBUG_LOOP = ContextVar[bool]('has_debug_loop', default=False)
 
 
@@ -84,7 +87,7 @@ async def ws(sock: WebSocket):
             for cancellation in cancellations:
                 try:
                     log.debug(f'WS cancelling {cancellation}')
-                    cancellation.cancel()
+                    cancellation()
                 except Exception as e:
                     log.exception(f'WS cancellation error: {e}')
         CANCELLATIONS.set(None)
@@ -99,37 +102,30 @@ async def refresh_debug(sock: WebSocket):
         log.debug(f'WS debug cancelled: {e}')
 
 
-async def send_debug(sock: WebSocket):
-    kc1 = KUBE_CONTROLLER1.get()
-    if not kc1:
-        await sock.send_text(json.dumps({'error': 'kube1 not configured'}))
-        return
-    kc2 = KUBE_CONTROLLER2.get()
-    if not kc2:
-        await sock.send_text(json.dumps({'error': 'kube2 not configured'}))
-        return
+async def send_debug(sock: WebSocket, sections={}):
+    if not sections:
+        kc1 = KUBE_CONTROLLER1.get()
+        if not kc1:
+            await sock.send_text(json.dumps({'error': 'kube1 not configured'}))
+            return
+        kc2 = KUBE_CONTROLLER2.get()
+        if not kc2:
+            await sock.send_text(json.dumps({'error': 'kube2 not configured'}))
+            return
+        debug_object = DEBUG_GLOBAL.get()
+        log.debug(f'{debug_object=}')
+        sections = debug_object.serialize()
+    log.debug(f'{sections=}')
     data = {
         'event': 'debug_info',
-        'names': ['kube1', 'kube2'],
-        'sections': {
-            'kube1': {
-                'values': {
-                    'state': str(kc1.state),
-                    'updated': datetime.datetime.now().isoformat(),
-                },
-                'buttons': {},
-            },
-            'kube2': {
-                'values': {
-                    'state': str(kc2.state),
-                    'updated': datetime.datetime.now().isoformat(),
-                },
-                'buttons': {},
-            },
-        },
+        'sections': sections,
     }
-    log.debug(f'debug {data=}')
-    await sock.send_text(json.dumps(data))
+    log.debug(f'debug {data=} {sock=}')
+    try:
+        await sock.send_text(json.dumps(data))
+    except Exception as e:
+        log.exception(f'WS debug error: {e}')
+        raise
 
 
 async def ws_accept(sock: WebSocket):
@@ -206,8 +202,14 @@ async def ws_accept(sock: WebSocket):
                     continue
                 HAS_DEBUG_LOOP.set(True)
                 task = asyncio.create_task(refresh_debug(sock))
+                def _send_debug(data):
+                    asyncio.create_task(send_debug(sock, data))
+                def _cancel_notify():
+                    DEBUG_GLOBAL.get().remove_notify(_send_debug)
+                DEBUG_GLOBAL.get().add_notify(_send_debug)
                 cancellations = CANCELLATIONS.get() or []
-                CANCELLATIONS.set(cancellations + [task])
+
+                CANCELLATIONS.set(cancellations + [task.cancel, _cancel_notify])
             else:
                 log.info(f'Unknown message: {msg}')
     except WebSocketDisconnect:

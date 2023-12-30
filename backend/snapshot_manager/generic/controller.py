@@ -3,6 +3,7 @@ import asyncio
 from asyncio import CancelledError, shield, Task
 from typing import Optional
 import enum
+from snapshot_manager.generic.debug import DEBUG_GLOBAL, DebugObject
 
 
 log = logging.getLogger(__name__)
@@ -42,12 +43,26 @@ class Timer:
 class Controller:
     stop_states = {State.STOPPING, State.STOPPED}
 
-    def __init__(self, retry_timeout=5, loop_interval=60, loop_timeout=120):
+    def __init__(self, retry_timeout=5, loop_interval=6, loop_timeout=120, debug=False):
         self.state = State.STOPPED
         self.retry_timeout = retry_timeout
         self.loop_interval = loop_interval
         self.loop_timeout = loop_timeout
         self.active_loop: Optional[Task] = None
+        self.timer = Timer(self)
+
+        self.debug = None
+        if debug:
+            if isinstance(debug, DebugObject):
+                self.debug = DebugObject(parent=debug, name=getattr(self, 'name'))
+            else:
+                self.debug = DebugObject(parent=DEBUG_GLOBAL.get(), name=getattr(self, 'name'))
+
+    def set_state(self, value):
+        log.debug(f'{self} state changed: {self.state} -> {value}')
+        self.state = value
+        if self.debug:
+            self.debug.track('state', str(value))
 
     async def startup(self):
         pass
@@ -96,10 +111,10 @@ class Controller:
         try:
             while self.is_running:
                 try:
-                    self.state = State.CALLBACK
+                    self.set_state(State.CALLBACK)
                     await asyncio.wait_for(self.loop_iteration(), timeout=self.loop_timeout)
-                    self.state = State.SLEEP
-                    await asyncio.sleep(self.get_loop_interval())
+                    self.set_state(State.SLEEP)
+                    await self.timer.wait(self.get_loop_interval())
                 except CancelledError:
                     log.debug(f'Cancelled loop: {self}')
                     break
@@ -109,17 +124,17 @@ class Controller:
                     if should_stop:
                         log.info(f'Stopping loop because of error: {self}')
                         break
-                    self.state = State.BACKOFF
+                    self.set_state(State.BACKOFF)
                     timeout = self.get_retry_timeout()
                     log.info(f'Retry in {timeout} seconds')
-                    await asyncio.sleep(timeout)
+                    await self.timer.wait(timeout)
         finally:
             # stopping => shutdown() => stopped
             log.debug(f'Shielded shutdown in finally {self.state=}')
             await self._do_shutdown()
 
     async def _call_on_error(self, error) -> bool:
-        self.state = State.ON_ERROR
+        self.set_state(State.ON_ERROR)
         should_stop = False
         try:
             should_stop = bool(await self.on_error(error))
@@ -130,10 +145,10 @@ class Controller:
     async def _do_shutdown(self):
         if self.active_loop:
             log.debug(f'is_cancelled={self.active_loop.cancelled()}')
-        self.state = State.STOPPING
+        self.set_state(State.STOPPING)
         try:
             await shield(self.shutdown())
         except Exception as e:
             log.exception(f'Exception in shutdown: {e}')
         finally:
-            self.state = State.STOPPED
+            self.set_state(State.STOPPED)
