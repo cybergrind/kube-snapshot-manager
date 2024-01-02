@@ -109,8 +109,9 @@ export const addEvent = (event) => {
   }
 }
 
-let outMessages = []
-let _ws
+let outMessages = new Array<Map<string, any>>()
+const wsConnectionCallbacks = new Map<string, Function>()
+let _ws: ReconnectingWebSocket | undefined = undefined
 
 export const connectWS = () => {
   if (_ws !== undefined) return
@@ -126,10 +127,30 @@ export const connectWS = () => {
       sendMsg(msg)
     })
     outMessages = []
+    wsConnectionCallbacks.forEach(async (cb) => {
+      try {
+        await cb()
+      } catch (e) {
+      }})
   })
 }
 
-export const sendMsg = async (msg) => {
+export const addWsCallback = (name: string, cb: Function): void => {
+  if (wsConnectionCallbacks.has(name)) {
+    console.error('Callback already exists: ', name)
+    throw new Error('Callback already exists: ' + name)
+  }
+  wsConnectionCallbacks.set(name, cb)
+  if (_ws !== undefined) {
+    cb()
+  }
+}
+
+export const deleteWsCallback = (name: string): void => {
+  wsConnectionCallbacks.delete(name)
+}
+
+export const sendMsg = async (msg: Map<string, any>) => {
   if (_ws === undefined) {
     outMessages.push(msg)
     return
