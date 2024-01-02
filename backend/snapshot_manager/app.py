@@ -3,7 +3,6 @@ import json
 import logging
 from contextvars import ContextVar
 from pathlib import Path
-import datetime
 from typing import Callable
 
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -256,6 +255,11 @@ async def errors_loggin_middleware(request: Request, call_next):
 def get_app() -> FastAPI:
     app = FastAPI(on_startup=[setup_controllers], on_shutdown=[shutdown_controllers])
     app.include_router(root)
-    app.add_middleware(PrometheusMiddleware, app_name='snapshot_manager', skip_paths=['/metrics'])
+    app.add_middleware(
+        PrometheusMiddleware,
+        app_name='snapshot_manager',
+        skip_paths=['/metrics'],
+        filter_unhandled_paths=True,
+    )
     app.middleware('http')(errors_loggin_middleware)
     return app
