@@ -1,5 +1,6 @@
 [tool.ruff]
 line-length = 100
+src = ["backend"]
 select = [
   "E",     # pycodestyle
   "F",     # pyflakes
@@ -17,13 +18,23 @@ ignore = [
   "G004"
 ]
 
+
+[tool.ruff.lint.isort]
+case-sensitive = true
+combine-as-imports = true
+known-first-party = ["snapshot_manager"]
+lines-after-imports = 2
+lines-between-types = 1
+no-lines-before = ["future", "standard-library"]
+order-by-type = true
+split-on-trailing-comma = false
+
+
 [tool.ruff.format]
 quote-style = "single"
 
-[tool.ruff.lint.isort]
-combine-as-imports = true
-known-first-party = ['snapshot_manager']
-lines-after-imports = 2
+
+
 
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
