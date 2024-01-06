@@ -35,7 +35,7 @@ async def refresh_debug(sock: WebSocket, controller: Controller):
             await asyncio.sleep(5)
     except (WebSocketDisconnect, asyncio.CancelledError, RuntimeError) as e:
         log.debug(f'WS debug cancelled: {e}')
-        controller.state = State.STOPPING
+        controller.set_state(State.STOPPING)
         controller.timer.trigger()
 
 
@@ -76,15 +76,20 @@ class WSController(Controller):
         super().__init__(*args, **kwargs)
 
     async def run_out_loop(self):
-        while True:
+        while self.is_running:
             event: BaseModel = await self.out_queue.get()
             if event is None:
-                self.state = State.STOPPING
+                self.set_state(State.STOPPING)
                 return
             if self.sock.client_state == WebSocketState.DISCONNECTED:
-                self.state = State.STOPPING
+                self.set_state(State.STOPPING)
                 return
-            await self.sock.send_text(event.json())
+            try:
+                await self.sock.send_text(event.json())
+            except Exception as e:
+                log.exception(f'WS error: {e}')
+                self.set_state(State.STOPPING)
+                return
 
     async def startup(self):
         log.info('WS')
@@ -93,7 +98,7 @@ class WSController(Controller):
         if not c:
             log.warning('AWS not configured')
             await sock.close()
-            self.state = State.STOPPING
+            self.set_state(State.STOPPING)
             return
 
         self.unsubscribe = c.subscribe(self.out_queue)
@@ -108,7 +113,7 @@ class WSController(Controller):
             return
         sock = self.sock
         try:
-            while True:
+            while self.is_running:
                 msg = await sock.receive_json()
                 log.debug(f'WS got {msg=}')
                 if msg['event'] == 'get_snapshots':
@@ -168,27 +173,34 @@ class WSController(Controller):
                 else:
                     log.info(f'Unknown message: {msg}')
         except (WebSocketDisconnect, RuntimeError):
-            self.state = State.STOPPING
+            self.set_state(State.STOPPING)
         except Exception as e:
-            self.state = State.STOPPING
+            self.set_state(State.STOPPING)
             log.exception(f'WS error: {e}')
             raise
 
     async def on_error(self, exception):
         log.exception(f'WS error: {exception}')
         if self.sock.client_state == WebSocketState.DISCONNECTED:
-            self.state = State.STOPPING
+            self.set_state(State.STOPPING)
             return True
 
     async def loop_iteration(self):
         if self.sock.client_state == WebSocketState.DISCONNECTED:
-            self.state = State.STOPPING
+            self.set_state(State.STOPPING)
+        if self.debug:
+            self.debug.track('sock.client_state', str(self.sock.client_state))
 
     async def shutdown(self):
         for task in [self.debug_loop, self.out_loop, self.in_loop]:
             if task and not task.done():
                 task.cancel()
+
         for callback in self.on_stop:
-            callback()
+            try:
+                callback()
+            except Exception as e:
+                log.exception(f'WS run stop callbacks error: {e}')
+
         if not self.finished.is_set():
             self.finished.set()

@@ -24,7 +24,10 @@ class DebugObject:
 
     def remove_child(self, child):
         if child:
-            self.children.remove(child)
+            try:
+                self.children.remove(child)
+            except ValueError:
+                log.warning(f'Child {child} not found in {self.children}')
 
     def track(self, name, value):
         self.values[name] = value
@@ -54,7 +57,10 @@ class DebugObject:
         self.change_callbacks.append(cb)
 
     def remove_notify(self, cb):
-        self.change_callbacks.remove(cb)
+        try:
+            self.change_callbacks.remove(cb)
+        except ValueError:
+            log.warning(f'Callback {cb} not found in {self.change_callbacks}')
 
     def __repr__(self) -> str:
         return f'<DebugObject (name={self.name} id={id(self)})'
