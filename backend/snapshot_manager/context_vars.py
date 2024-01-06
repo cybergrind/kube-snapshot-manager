@@ -1,10 +1,12 @@
-from contextvars import ContextVar
 import typing
+
+from contextvars import ContextVar
 from typing import Optional
 
+
 if typing.TYPE_CHECKING:
-    from .kube_controller import KubeController
     from .controller import AWSController
+    from .kube_controller import KubeController
 
 
 CONTROLLER: ContextVar[Optional['AWSController']] = ContextVar('aws_controller', default=None)

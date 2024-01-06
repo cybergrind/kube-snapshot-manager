@@ -1,8 +1,10 @@
-import logging
 import asyncio
-from asyncio import CancelledError, shield, Task
-from typing import Optional
 import enum
+import logging
+
+from asyncio import CancelledError, Task, shield
+from typing import Optional
+
 from snapshot_manager.generic.debug import DEBUG_GLOBAL, DebugObject
 
 
@@ -39,6 +41,12 @@ class Timer:
         if not self.wait_event.is_set():
             self.wait_event.set()
 
+    def trigger(self):
+        if not self.wait_event.is_set():
+            if self.wait_task and not self.wait_task.done():
+                self.wait_task.cancel()
+            self.wait_event.set()
+
 
 class Controller:
     stop_states = {State.STOPPING, State.STOPPED}
@@ -53,10 +61,11 @@ class Controller:
 
         self.debug = None
         if debug:
+            name = getattr(self, 'name', f'{self.__class__.__name__}_{id(self)}')
             if isinstance(debug, DebugObject):
-                self.debug = DebugObject(parent=debug, name=getattr(self, 'name'))
+                self.debug = DebugObject(parent=debug, name=name)
             else:
-                self.debug = DebugObject(parent=DEBUG_GLOBAL.get(), name=getattr(self, 'name'))
+                self.debug = DebugObject(parent=DEBUG_GLOBAL.get(), name=name)
 
     def set_state(self, value):
         log.debug(f'{self} state changed: {self.state} -> {value}')
@@ -74,7 +83,6 @@ class Controller:
         """
         do job here
         """
-        pass
 
     def get_retry_timeout(self):
         return self.retry_timeout

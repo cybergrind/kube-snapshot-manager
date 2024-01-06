@@ -1,7 +1,8 @@
-from contextvars import ContextVar
-from typing import Any, Dict
-from datetime import datetime
 import logging
+
+from contextvars import ContextVar
+from datetime import datetime
+from typing import Any, Dict
 
 
 log = logging.getLogger(__name__)
@@ -22,7 +23,8 @@ class DebugObject:
         self.children.append(child)
 
     def remove_child(self, child):
-        self.children.remove(child)
+        if child:
+            self.children.remove(child)
 
     def track(self, name, value):
         self.values[name] = value
