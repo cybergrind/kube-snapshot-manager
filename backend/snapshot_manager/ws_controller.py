@@ -28,19 +28,17 @@ def get_kube_controller(event, default_cluster=None) -> 'KubeController':
     raise ValueError(f'Unknown cluster {event=}')
 
 
-async def refresh_debug(sock: WebSocket, controller: Controller):
+async def refresh_debug(sock: WebSocket, controller: 'WSController'):
     try:
         while True:
             await send_debug(sock)
             await asyncio.sleep(5)
     except RuntimeError:
         log.debug('WS refresh_debug got RuntimeError')
-        controller.set_state(State.STOPPING)
-        controller.timer.trigger()
+        controller.ws_stopping()
     except (WebSocketDisconnect, asyncio.CancelledError) as e:
         log.debug(f'WS debug cancelled: {e}')
-        controller.set_state(State.STOPPING)
-        controller.timer.trigger()
+        controller.ws_stopping()
 
 
 async def send_debug(sock: WebSocket, sections={}):
@@ -85,23 +83,22 @@ class WSController(Controller):
         self.out_loop = asyncio.create_task(self.run_out_loop())
         self.out_queue = asyncio.Queue()
         self.in_loop: asyncio.Task | None = None
-        self.on_stop = []
         super().__init__(*args, **kwargs)
 
     async def run_out_loop(self):
         while self.is_running:
             event: BaseModel = await self.out_queue.get()
             if event is None:
-                self.set_state(State.STOPPING)
+                self.ws_stopping()
                 return
             if self.sock.client_state == WebSocketState.DISCONNECTED:
-                self.set_state(State.STOPPING)
+                self.ws_stopping()
                 return
             try:
                 await self.sock.send_text(event.json())
             except Exception as e:
                 log.exception(f'WS error: {e}')
-                self.set_state(State.STOPPING)
+                self.ws_stopping()
                 return
 
     async def startup(self):
@@ -111,7 +108,7 @@ class WSController(Controller):
         if not c:
             log.warning('AWS not configured')
             await sock.close()
-            self.set_state(State.STOPPING)
+            self.ws_stopping()
             return
 
         self.unsubscribe = c.subscribe(self.out_queue)
@@ -178,19 +175,23 @@ class WSController(Controller):
                         asyncio.create_task(safe_send_debug(sock, data))
 
                     def _cancel_notify():
+                        log.debug(f'Cancel notify: {_send_debug} + {self.debug}')
                         debug_global.remove_notify(_send_debug)
-                        debug_global.remove_child(self.debug)
 
                     debug_global.add_notify(_send_debug)
                     self.on_stop.append(_cancel_notify)
                 else:
                     log.info(f'Unknown message: {msg}')
         except (WebSocketDisconnect, RuntimeError):
-            self.set_state(State.STOPPING)
+            self.ws_stopping()
         except Exception as e:
-            self.set_state(State.STOPPING)
+            self.ws_stopping()
             log.exception(f'WS error: {e}')
             raise
+
+    def ws_stopping(self):
+        self.set_state(State.STOPPING)
+        self.timer.trigger()
 
     async def on_error(self, exception):
         log.exception(f'WS error: {exception}')
@@ -205,15 +206,12 @@ class WSController(Controller):
             self.debug.track('sock.client_state', str(self.sock.client_state))
 
     async def shutdown(self):
-        for task in [self.debug_loop, self.out_loop, self.in_loop]:
+        shutdown_tasks = [self.debug_loop, self.out_loop, self.in_loop]
+        log.info(f'shutdown: {shutdown_tasks=} {self.on_stop=}')
+
+        for task in shutdown_tasks:
             if task and not task.done():
                 task.cancel()
-
-        for callback in self.on_stop:
-            try:
-                callback()
-            except Exception as e:
-                log.exception(f'WS run stop callbacks error: {e}')
 
         if not self.finished.is_set():
             self.finished.set()

@@ -19,7 +19,7 @@ class DebugObject:
         self.buttons = {}
         self.change_callbacks = []
 
-    def add_child(self, child):
+    def add_child(self, child: 'DebugObject'):
         self.children.append(child)
 
     def remove_child(self, child):

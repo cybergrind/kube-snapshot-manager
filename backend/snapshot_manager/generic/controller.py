@@ -3,7 +3,7 @@ import enum
 import logging
 
 from asyncio import CancelledError, Task, shield
-from typing import Optional
+from typing import Callable, List, Optional
 
 from snapshot_manager.generic.debug import DEBUG_GLOBAL, DebugObject
 
@@ -58,14 +58,18 @@ class Controller:
         self.loop_timeout = loop_timeout
         self.active_loop: Optional[Task] = None
         self.timer = Timer(self)
+        self.on_stop: List[Callable] = []
 
-        self.debug = None
+        self.debug: Optional[DebugObject] = None
         if debug:
             name = getattr(self, 'name', f'{self.__class__.__name__}_{id(self)}')
             if isinstance(debug, DebugObject):
                 self.debug = DebugObject(parent=debug, name=name)
             else:
                 self.debug = DebugObject(parent=DEBUG_GLOBAL.get(), name=name)
+
+            if self.debug:
+                self.on_stop.append(lambda: self.debug.parent.remove_child(self.debug))
 
     def set_state(self, value):
         log.debug(f'{self} state changed: {self.state} -> {value}')
@@ -154,8 +158,18 @@ class Controller:
         if self.active_loop:
             log.debug(f'is_cancelled={self.active_loop.cancelled()}')
         self.set_state(State.STOPPING)
+
         try:
+            log.info(f'shielded shutdown {self=}')
             await shield(self.shutdown())
+            for callback in self.on_stop:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await shield(callback())
+                    else:
+                        callback()
+                except Exception as e:
+                    log.exception(f'Exception in on_stop callback: {e}')
         except Exception as e:
             log.exception(f'Exception in shutdown: {e}')
         finally:
