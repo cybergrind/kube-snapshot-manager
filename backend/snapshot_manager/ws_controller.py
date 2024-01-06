@@ -33,7 +33,11 @@ async def refresh_debug(sock: WebSocket, controller: Controller):
         while True:
             await send_debug(sock)
             await asyncio.sleep(5)
-    except (WebSocketDisconnect, asyncio.CancelledError, RuntimeError) as e:
+    except RuntimeError:
+        log.debug('WS refresh_debug got RuntimeError')
+        controller.set_state(State.STOPPING)
+        controller.timer.trigger()
+    except (WebSocketDisconnect, asyncio.CancelledError) as e:
         log.debug(f'WS debug cancelled: {e}')
         controller.set_state(State.STOPPING)
         controller.timer.trigger()
@@ -59,9 +63,18 @@ async def send_debug(sock: WebSocket, sections={}):
     log.debug(f'debug {data=} {sock=}')
     try:
         await sock.send_text(json.dumps(data))
+    except RuntimeError:
+        raise
     except Exception as e:
         log.exception(f'WS debug error: {e}')
         raise
+
+
+async def safe_send_debug(sock: WebSocket, controller: Controller):
+    try:
+        await send_debug(sock)
+    except RuntimeError:
+        log.info('WS safe_send_debug got RuntimeError')
 
 
 class WSController(Controller):
@@ -162,7 +175,7 @@ class WSController(Controller):
                     debug_global = DEBUG_GLOBAL.get()
 
                     def _send_debug(data):
-                        asyncio.create_task(send_debug(sock, data))
+                        asyncio.create_task(safe_send_debug(sock, data))
 
                     def _cancel_notify():
                         debug_global.remove_notify(_send_debug)
