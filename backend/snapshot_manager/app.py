@@ -66,8 +66,8 @@ HAS_DEBUG_LOOP = ContextVar[bool]('has_debug_loop', default=False)
 async def ws(sock: WebSocket):
     try:
         sock_controller = WSController(sock, debug=debug_global)
-        await sock_controller.start()
-        await sock_controller.finished.wait()
+        main_loop = await sock_controller.start()
+        await main_loop
     except Exception as e:
         log.exception(f'WS error: {e}')
 

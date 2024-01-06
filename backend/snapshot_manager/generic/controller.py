@@ -3,7 +3,7 @@ import enum
 import logging
 
 from asyncio import CancelledError, Task, shield
-from typing import Callable, List, Optional
+from typing import Awaitable, Callable, Coroutine, Dict, Optional
 
 from snapshot_manager.generic.debug import DEBUG_GLOBAL, DebugObject
 
@@ -36,16 +36,39 @@ class Timer:
 
         return self.wait_event.wait()
 
+    def wait_for(self, coro: Coroutine, timeout: int | float):
+        if self.wait_task and not self.wait_task.done():
+            raise RuntimeError('Already waiting')
+
+        async def _wait_for():
+            try:
+                await asyncio.wait_for(coro, timeout)
+            finally:
+                if not self.wait_event.is_set():
+                    self.wait_event.set()
+                if self.wait_task and not self.wait_task.done():
+                    self.wait_task.cancel()
+
+        self.wait_event.clear()
+        self.wait_task = asyncio.create_task(_wait_for())
+
+        return self.wait_event.wait()
+
     async def _wait(self, timeout: int | float):
         await asyncio.sleep(timeout)
         if not self.wait_event.is_set():
             self.wait_event.set()
 
     def trigger(self):
+        if self.wait_task and not self.wait_task.done():
+            self.wait_task.cancel()
+
         if not self.wait_event.is_set():
-            if self.wait_task and not self.wait_task.done():
-                self.wait_task.cancel()
             self.wait_event.set()
+
+
+Callback = Callable[..., None] | Callable[..., Awaitable[None]]
+ACTIVE_LOOP = 'active_loop'
 
 
 class Controller:
@@ -53,14 +76,16 @@ class Controller:
 
     def __init__(self, retry_timeout=5, loop_interval=60, loop_timeout=120, debug=False):
         self.state = State.STOPPED
+        self.timer = Timer(self)
         self.retry_timeout = retry_timeout
         self.loop_interval = loop_interval
         self.loop_timeout = loop_timeout
-        self.active_loop: Optional[Task] = None
-        self.timer = Timer(self)
-        self.on_stop: List[Callable] = []
+
+        self.active_loops: Dict[str, Task] = {}
+        self.on_stop_callbacks: Dict[str, Callback] = {}
 
         self.debug: Optional[DebugObject] = None
+
         if debug:
             name = getattr(self, 'name', f'{self.__class__.__name__}_{id(self)}')
             if isinstance(debug, DebugObject):
@@ -69,30 +94,26 @@ class Controller:
                 self.debug = DebugObject(parent=DEBUG_GLOBAL.get(), name=name)
 
             if self.debug:
-                self.on_stop.append(lambda: self.debug.parent.remove_child(self.debug))
 
-    def set_state(self, value):
-        log.debug(f'{self} state changed: {self.state} -> {value}')
-        self.state = value
-        if self.debug:
-            self.debug.track('state', str(value))
+                def _remove_child():
+                    self.debug.parent.remove_child(self.debug)
 
-    async def startup(self):
-        pass
-
-    async def shutdown(self):
-        pass
+                self.add_stop_callback(f'debug_{name}', _remove_child)
 
     async def loop_iteration(self):
         """
-        do job here
+        main loop work is here
         """
 
-    def get_retry_timeout(self):
-        return self.retry_timeout
+    async def startup(self):
+        """
+        run before the main loop
+        """
 
-    def get_loop_interval(self):
-        return self.loop_interval
+    async def shutdown(self):
+        """
+        run after the main loop
+        """
 
     async def on_error(self, exception) -> Optional[bool]:
         """
@@ -101,19 +122,74 @@ class Controller:
         """
         log.exception(f'Exception in loop: {self} {exception}')
 
+    def add_stop_callback(self, name: str, callback: Callback):
+        """
+        add dynamic function to run during stop
+        """
+        if name in self.on_stop_callbacks:
+            raise RuntimeError(f'Callback {name} already registered')
+        self.on_stop_callbacks[name] = callback
+
+    def track_task(self, task: Task | Coroutine, name: str | None = None):
+        """
+        register additional loops, they will stop automatically
+        """
+        if not isinstance(task, Task):
+            task = asyncio.create_task(task)
+
+        if not name:
+            name = f'task_{id(task)}_{str(task)}'
+
+        if name in self.active_loops:
+            raise RuntimeError(f'Task {name} already registered')
+
+        self.active_loops[name] = task
+
+        def __maybe_remove(*_):
+            if name in self.active_loops and self.active_loops[name] == task:
+                del self.active_loops[name]
+
+        task.add_done_callback(__maybe_remove)
+
+    def set_state(self, value):
+        log.debug(f'{self} state changed: {self.state} -> {value}')
+        self.state = value
+        if self.debug:
+            self.debug.track('state', str(value))
+
+    def get_retry_timeout(self):
+        return self.retry_timeout
+
+    def get_loop_interval(self):
+        return self.loop_interval
+
     async def start(self):
         if self.state != State.STOPPED:
             raise RuntimeError(f'Cannot start {self} in state {self.state}')
 
         self.state = State.STARTING
         await self.startup()
-        self.active_loop = asyncio.ensure_future(self.inner_loop())
-        return self.active_loop
+        active_loop = asyncio.ensure_future(self.inner_loop())
+        self.track_task(active_loop, ACTIVE_LOOP)
+        return active_loop
+
+    def trigger_stop(self):
+        log.debug(f'Triggering stop {self}')
+
+        for name, loop in self.active_loops.items():
+            log.debug(f'Loop item {name} {loop=}')
+        for name, callback in self.on_stop_callbacks.items():
+            log.debug(f'Callback item {name} {callback=}')
+
+        if self.is_running:
+            self.set_state(State.STOPPING)
+            self.timer.trigger()
 
     async def stop(self):
-        if self.active_loop:
-            self.active_loop.cancel()
-            await self.active_loop
+        self.trigger_stop()
+        active_loop = self.active_loops.get(ACTIVE_LOOP)
+        if active_loop:
+            await active_loop
 
     @property
     def is_running(self):
@@ -124,7 +200,7 @@ class Controller:
             while self.is_running:
                 try:
                     self.set_state(State.CALLBACK)
-                    await asyncio.wait_for(self.loop_iteration(), timeout=self.loop_timeout)
+                    await self.timer.wait_for(self.loop_iteration(), timeout=self.loop_timeout)
                     self.set_state(State.SLEEP)
                     await self.timer.wait(self.get_loop_interval())
                 except CancelledError:
@@ -141,7 +217,6 @@ class Controller:
                     log.info(f'Retry in {timeout} seconds')
                     await self.timer.wait(timeout)
         finally:
-            # stopping => shutdown() => stopped
             log.debug(f'Shielded shutdown in finally {self.state=}')
             await self._do_shutdown()
 
@@ -155,22 +230,43 @@ class Controller:
         return should_stop
 
     async def _do_shutdown(self):
-        if self.active_loop:
-            log.debug(f'is_cancelled={self.active_loop.cancelled()}')
+        if active_loop := self.active_loops.get(ACTIVE_LOOP):
+            log.debug(f'is_cancelled={active_loop.cancelled()}')
         self.set_state(State.STOPPING)
 
+        await self.run_shielded_shutdown()
+        await self.stop_tracked_tasks()
+        await self.run_on_stop_callbacks()
+        self.set_state(State.STOPPED)
+
+    async def run_shielded_shutdown(self):
         try:
             log.info(f'shielded shutdown {self=}')
             await shield(self.shutdown())
-            for callback in self.on_stop:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await shield(callback())
-                    else:
-                        callback()
-                except Exception as e:
-                    log.exception(f'Exception in on_stop callback: {e}')
-        except Exception as e:
-            log.exception(f'Exception in shutdown: {e}')
-        finally:
-            self.set_state(State.STOPPED)
+        except Exception:
+            log.exception('During shielded shutdown')
+
+    async def stop_tracked_tasks(self):
+        wait_tasks = []
+        for task_name, task in self.active_loops.items():
+            if task_name != ACTIVE_LOOP and not task.done():
+                log.debug(f'is_cancelled={task.cancelled()}')
+                task.cancel()
+                wait_tasks.append(task)
+        try:
+            await asyncio.gather(*wait_tasks, return_exceptions=True)
+        except Exception:
+            log.exception('During stopping active tasks')
+
+    async def run_on_stop_callbacks(self):
+        for callback_name, callback in self.on_stop_callbacks.items():
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await shield(callback())
+                else:
+                    callback()
+            except Exception as e:
+                log.exception(f'Exception in on_stop callback={callback_name}: {e}')
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} {id(self)} state={self.state}>'
