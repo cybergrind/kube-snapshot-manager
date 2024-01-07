@@ -1,9 +1,10 @@
 import asyncio
 import enum
 import logging
+import time
 
-from asyncio import CancelledError, Task, shield
-from typing import Awaitable, Callable, Coroutine, Dict, Optional
+from asyncio import CancelledError, Future, Task, shield
+from typing import Awaitable, Callable, Coroutine, Dict, List, Optional
 
 from snapshot_manager.generic.debug import DEBUG_GLOBAL, DebugObject
 
@@ -25,46 +26,67 @@ class Timer:
     def __init__(self, parent):
         self.parent = parent
         self.wait_event = asyncio.Event()
-        self.wait_task: Optional[Task] = None
+        self.wait_futures: List[Future] = []
+        self._wait_time = 0
 
-    def wait(self, timeout: int | float):
-        if self.wait_task and not self.wait_task.done():
+    async def wait(self, timeout: int | float):
+        if self.has_wait_futures:
             raise RuntimeError('Already waiting')
 
-        self.wait_event.clear()
-        self.wait_task = asyncio.create_task(self._wait(timeout))
+        wait_futures: List[Future] = [self._sleep(timeout)]
+        self._wait_time = time.time() + timeout
+        await self._wait_and_clean(wait_futures)
 
-        return self.wait_event.wait()
-
-    def wait_for(self, coro: Coroutine, timeout: int | float):
-        if self.wait_task and not self.wait_task.done():
+    async def wait_for(self, coro: Coroutine, timeout: int | float):
+        if self.has_wait_futures:
             raise RuntimeError('Already waiting')
 
-        async def _wait_for():
-            try:
-                await asyncio.wait_for(coro, timeout)
-            finally:
-                if not self.wait_event.is_set():
-                    self.wait_event.set()
-                if self.wait_task and not self.wait_task.done():
-                    self.wait_task.cancel()
+        f = self._wait_and_clean([self._sleep(timeout), asyncio.create_task(coro)])
+        await f
 
-        self.wait_event.clear()
-        self.wait_task = asyncio.create_task(_wait_for())
+    async def join(self):
+        if self.has_wait_futures:
+            await asyncio.wait(self.wait_futures, return_when=asyncio.FIRST_COMPLETED)
 
-        return self.wait_event.wait()
+    def __repr__(self) -> str:
+        return f'<Timer wait={self.current_wait_time:.2f}s>'
 
-    async def _wait(self, timeout: int | float):
-        await asyncio.sleep(timeout)
-        if not self.wait_event.is_set():
-            self.wait_event.set()
+    @property
+    def has_wait_futures(self) -> bool:
+        if not self.wait_futures:
+            return False
+        return any([not t.done() for t in self.wait_futures])
+
+    @property
+    def current_wait_time(self) -> float:
+        if self.has_wait_futures:
+            return 0
+        return max(self._wait_time - time.time(), 0)
+
+    async def _wait_and_clean(self, fs: List[Future]):
+        self.wait_futures = fs
+        try:
+            await self.join()
+        finally:
+            for f in fs:
+                if not f.done():
+                    f.cancel()
+            self.wait_futures = []
+
+    def _sleep(self, timeout: float | int):
+        ret = asyncio.create_task(asyncio.sleep(timeout))
+        self._wait_time = time.time() + timeout
+        return ret
+
+    def serialize(self):
+        return {
+            'wait_time': self.current_wait_time.__round__(2),
+            'wait_futures': len(self.wait_futures),
+        }
 
     def trigger(self):
-        if self.wait_task and not self.wait_task.done():
-            self.wait_task.cancel()
-
-        if not self.wait_event.is_set():
-            self.wait_event.set()
+        if self.has_wait_futures:
+            self.wait_futures[0].cancel()
 
 
 Callback = Callable[..., None] | Callable[..., Awaitable[None]]
