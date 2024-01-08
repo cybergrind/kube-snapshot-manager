@@ -19,7 +19,8 @@ aws ec2 describe-snapshots --owner-ids self
 
 
 * generic controller
- * better timeouts - support dynamic trigger. eg. change implementation to asyncio.Event + asyncio.sleep
+ * support callback to get data in serialization
+ * buttons routing
  * current controller state (start, callback, on_error, sleep, stopping, stopped)
  * log with controller name
  * simple controller factory: name, callback

@@ -69,7 +69,7 @@ class Timer:
             await self.join()
         finally:
             for f in fs:
-                if not f.done():
+                if not f.done() and not f.get_loop().is_closed():
                     f.cancel()
             self.wait_futures = []
 
