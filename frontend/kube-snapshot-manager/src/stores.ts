@@ -102,6 +102,7 @@ export const addEvent = (event) => {
     case 'debug_info': {
       const { sections } = event
       debugInfo.sections.update(() => sections)
+      break
     }
     default: {
       console.log('Unknown event type: ', event.event, event)
