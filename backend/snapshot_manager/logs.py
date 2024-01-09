@@ -1,4 +1,5 @@
 import logging
+
 from fan_tools.fan_logging import setup_logger
 
 

@@ -1,3 +1,7 @@
+[project]
+name = "snapshot_manager"
+
+
 [tool.ruff]
 line-length = 100
 src = ["backend"]

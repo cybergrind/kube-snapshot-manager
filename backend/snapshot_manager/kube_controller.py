@@ -1,4 +1,5 @@
 import logging
+
 from pathlib import Path
 
 from kubernetes_asyncio import client, config
@@ -6,6 +7,7 @@ from kubernetes_asyncio.client.api_client import ApiClient
 from kubernetes_asyncio.client.exceptions import ApiException
 
 from snapshot_manager.generic.controller import Controller
+
 from .models import PV
 
 
@@ -23,9 +25,11 @@ class KubeController(Controller):
         v1 = client.CoreV1Api(self.api)
         nodes = await v1.list_node()
         for node in nodes.items:
-            log.debug(
-                f'{self.name}: node={node.metadata.name} kubelet={node.status.node_info.kubelet_version}'
+            msg = (
+                f'{self.name}: node={node.metadata.name} '
+                f'kubelet={node.status.node_info.kubelet_version}'
             )
+            log.debug(msg)
 
     async def startup(self):
         self.config = client.Configuration()
@@ -38,7 +42,8 @@ class KubeController(Controller):
         pods = await v1.list_namespaced_pod('octo-prod')
         for pod in pods.items:
             log.debug(
-                f'ip={pod.status.pod_ip} name={pod.metadata.name}, namespace={pod.metadata.namespace}'
+                f'ip={pod.status.pod_ip} name={pod.metadata.name}, '
+                f'namespace={pod.metadata.namespace}'
             )
         await self.get_pvs()
 
@@ -118,7 +123,9 @@ class KubeController(Controller):
         # check if 'snaphot.storage.k8s.io' is installed
         try:
             contents = await crd.list_cluster_custom_object(
-                group='snapshot.storage.k8s.io', version='v1', plural='volumesnapshotcontents'
+                group='snapshot.storage.k8s.io',
+                version='v1',
+                plural='volumesnapshotcontents',
             )
         except ApiException as e:
             if e.status == 404:
@@ -150,7 +157,6 @@ class KubeController(Controller):
         pvs = await v1.list_persistent_volume()
         pv_by_volume = {}
         for pv in pvs.items:
-            print(f'{pv.spec=}')
             pv_by_volume[pv.spec.csi.volume_handle] = pv
         return pv_by_volume
 

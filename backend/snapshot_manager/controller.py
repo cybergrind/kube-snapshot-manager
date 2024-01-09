@@ -1,12 +1,13 @@
 import logging
+
 from asyncio import Queue
 from pathlib import Path
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import aioboto3
-from pydantic import BaseModel
 
 from fan_tools.python import cache_async as cache
+from pydantic import BaseModel
 
 from .models import SnaphotsEvent, Snapshot, Snapshots, Volume, Volumes, VolumesEvent
 
@@ -61,19 +62,17 @@ class AWSController:
             attachment['AttachTime'] = attachment['AttachTime'].isoformat()
         tags = {tag['Key']: tag['Value'] for tag in (await volume.tags) or []}
         return Volume(
-            **{
-                'id': volume.id,
-                'state': await volume.state,
-                'size': await volume.size,
-                'volume_type': await volume.volume_type,
-                'create_time': (await volume.create_time).strftime('%Y-%m-%d %H:%M:%S'),
-                'tags': tags,
-                'iops': await volume.iops,
-                'snapshot_id': await volume.snapshot_id,
-                'availability_zone': await volume.availability_zone,
-                'attachments': attachments,
-                'snapshots': await self.get_volume_snapshots(volume.id),
-            }
+            id=volume.id,
+            state=await volume.state,
+            size=await volume.size,
+            volume_type=await volume.volume_type,
+            create_time=(await volume.create_time).strftime('%Y-%m-%d %H:%M:%S'),
+            tags=tags,
+            iops=await volume.iops,
+            snapshot_id=await volume.snapshot_id,
+            availability_zone=await volume.availability_zone,
+            attachments=attachments,
+            snapshots=await self.get_volume_snapshots(volume.id),
         )
 
     async def get_volume_snapshots(self, volume_id) -> list[Snapshot]:
@@ -84,16 +83,14 @@ class AWSController:
             tags = {tag['Key']: tag['Value'] for tag in (await snapshot.tags) or {}}
             resp.append(
                 Snapshot(
-                    **{
-                        'description': await snapshot.description,
-                        'id': snapshot.id,
-                        'progress': await snapshot.progress,
-                        'size': await snapshot.volume_size,
-                        'start_time': (await snapshot.start_time).strftime('%Y-%m-%d %H:%M:%S'),
-                        'state': await snapshot.state,
-                        'tags': tags,
-                        'volume_id': await snapshot.volume_id,
-                    }
+                    description=await snapshot.description,
+                    id=snapshot.id,
+                    progress=await snapshot.progress,
+                    size=await snapshot.volume_size,
+                    start_time=(await snapshot.start_time).strftime('%Y-%m-%d %H:%M:%S'),
+                    state=await snapshot.state,
+                    tags=tags,
+                    volume_id=await snapshot.volume_id,
                 )
             )
         return resp
@@ -143,16 +140,14 @@ class AWSController:
     async def snapshot_to_dict(self, snapshot) -> Snapshot:
         tags = {tag['Key']: tag['Value'] for tag in (await snapshot.tags) or {}}
         return Snapshot(
-            **{
-                'description': await snapshot.description,
-                'id': snapshot.id,
-                'progress': await snapshot.progress,
-                'size': await snapshot.volume_size,
-                'start_time': (await snapshot.start_time).strftime('%Y-%m-%d %H:%M:%S'),
-                'state': await snapshot.state,
-                'tags': tags,
-                'volume_id': await snapshot.volume_id,
-            }
+            description=await snapshot.description,
+            id=snapshot.id,
+            progress=await snapshot.progress,
+            size=await snapshot.volume_size,
+            start_time=(await snapshot.start_time).strftime('%Y-%m-%d %H:%M:%S'),
+            state=await snapshot.state,
+            tags=tags,
+            volume_id=await snapshot.volume_id,
         )
 
     async def snapshot_volume(self, volume_id):
