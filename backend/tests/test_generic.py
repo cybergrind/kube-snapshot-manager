@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from snapshot_manager.generic.controller import Timer
+from snapshot_manager.generic.controller import Timer, serialize_merge
 from snapshot_manager.generic.debug import DebugObject
 
 
@@ -61,3 +61,18 @@ class TestDebugObject:
             'kube1': {'values': {'state': 'test'}, 'buttons': {}},
             'kube2': {'values': {}, 'buttons': {}},
         }
+
+
+class TestSerializeMerge:
+    def test_empty(self):
+        assert serialize_merge({}, {'a': 'b'}, 'some_prefix') == {'a': 'b'}
+
+    def test_prefix(self):
+        assert serialize_merge({'values': {'a': 'b'}}, {'values': {}, 'buttons': {}}, 'prefix') == {
+            'values': {'prefix.a': 'b'},
+            'buttons': {},
+        }
+
+    def test_empty_des(self):
+        with pytest.raises(KeyError):
+            serialize_merge({'values': {'a': 'b'}}, {}, 'prefix')

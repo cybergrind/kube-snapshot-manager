@@ -22,6 +22,13 @@ class State(enum.Enum):
     STOPPED = 'stopped'
 
 
+def serialize_merge(src: Dict, dst: Dict, prefix: str) -> Dict:
+    for section in ['values', 'buttons']:
+        for name, value in src.get(section, {}).items():
+            dst[section][f'{prefix}.{name}'] = value
+    return dst
+
+
 class Timer:
     def __init__(self, parent):
         self.parent = parent
@@ -59,7 +66,7 @@ class Timer:
 
     @property
     def current_wait_time(self) -> float:
-        if self.has_wait_futures:
+        if not self.has_wait_futures:
             return 0
         return max(self._wait_time - time.time(), 0)
 
@@ -80,8 +87,10 @@ class Timer:
 
     def serialize(self):
         return {
-            'wait_time': self.current_wait_time.__round__(2),
-            'wait_futures': len(self.wait_futures),
+            'values': {
+                'wait_time': self.current_wait_time.__round__(2),
+                'wait_futures': len(self.wait_futures),
+            }
         }
 
     def trigger(self):
@@ -111,9 +120,11 @@ class Controller:
         if debug:
             name = getattr(self, 'name', f'{self.__class__.__name__}_{id(self)}')
             if isinstance(debug, DebugObject):
-                self.debug = DebugObject(parent=debug, name=name)
+                self.debug = DebugObject(parent=debug, name=name, serialize=self.serialize)
             else:
-                self.debug = DebugObject(parent=DEBUG_GLOBAL.get(), name=name)
+                self.debug = DebugObject(
+                    parent=DEBUG_GLOBAL.get(), name=name, serialize=self.serialize
+                )
 
             if self.debug:
 
@@ -143,6 +154,14 @@ class Controller:
         do reinitialization here if required
         """
         log.exception(f'Exception in loop: {self} {exception}')
+
+    def serialize(self, out):
+        """
+        {'values': {}, 'buttons': {}}
+        """
+        timer_out = self.timer.serialize()
+        out = serialize_merge(timer_out, out, 'timer')
+        return out
 
     def add_stop_callback(self, name: str, callback: Callback):
         """

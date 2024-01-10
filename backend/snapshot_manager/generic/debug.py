@@ -2,19 +2,20 @@ import logging
 
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 
 
 log = logging.getLogger(__name__)
 
 
 class DebugObject:
-    def __init__(self, parent, name=None):
+    def __init__(self, parent, name=None, serialize: Optional[Callable[[Dict], Dict]] = None):
         self.parent = parent
         if self.parent:
             self.parent.add_child(self)
         self.children = []
         self.name = name
+        self.serialize_callback = serialize
         self.values = {}
         self.buttons = {}
         self.change_callbacks = []
@@ -41,6 +42,8 @@ class DebugObject:
                 'buttons': self.buttons,
             }
             out[self.name]['values']['timestamp'] = datetime.now().isoformat()
+            if self.serialize_callback:
+                out[self.name] = self.serialize_callback(out[self.name])
             return out
         out['global'] = {
             'values': {
