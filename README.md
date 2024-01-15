@@ -27,6 +27,7 @@ aws ec2 describe-snapshots --owner-ids self
  * metrics
  * generic alerts
  * nesting controllers -> parent can show ill children
+ * timer: last state transition - notification
 
 * small state machine
 

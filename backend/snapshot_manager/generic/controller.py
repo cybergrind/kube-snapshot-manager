@@ -22,6 +22,30 @@ class State(enum.Enum):
     STOPPED = 'stopped'
 
 
+class NamedLogger:
+    def __init__(self, name):
+        self.name = name
+
+    def _log(self, level, msg, *args, **kwargs):
+        msg = f'<{self.name}> {msg}'
+        getattr(log, level)(msg, *args, **kwargs)
+
+    def debug(self, msg, *args, **kwargs):
+        self._log('debug', msg, *args, **kwargs)
+
+    def info(self, msg, *args, **kwargs):
+        self._log('info', msg, *args, **kwargs)
+
+    def warn(self, msg, *args, **kwargs):
+        self._log('warn', msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self._log('warning', msg, *args, **kwargs)
+
+    def exception(self, msg, *args, **kwargs):
+        self._log('exception', msg, *args, **kwargs)
+
+
 def serialize_merge(src: Dict, dst: Dict, prefix: str) -> Dict:
     for section in ['values', 'buttons']:
         for name, value in src.get(section, {}).items():
@@ -116,14 +140,15 @@ class Controller:
         self.on_stop_callbacks: Dict[str, Callback] = {}
 
         self.debug: Optional[DebugObject] = None
+        self.name = getattr(self, 'name', f'{self.__class__.__name__}_{id(self)}')
+        self.log = NamedLogger(self.name)
 
         if debug:
-            name = getattr(self, 'name', f'{self.__class__.__name__}_{id(self)}')
             if isinstance(debug, DebugObject):
-                self.debug = DebugObject(parent=debug, name=name, serialize=self.serialize)
+                self.debug = DebugObject(parent=debug, name=self.name, serialize=self.serialize)
             else:
                 self.debug = DebugObject(
-                    parent=DEBUG_GLOBAL.get(), name=name, serialize=self.serialize
+                    parent=DEBUG_GLOBAL.get(), name=self.name, serialize=self.serialize
                 )
 
             if self.debug:
@@ -131,7 +156,7 @@ class Controller:
                 def _remove_child():
                     self.debug.parent.remove_child(self.debug)
 
-                self.add_stop_callback(f'debug_{name}', _remove_child)
+                self.add_stop_callback(f'debug_{self.name}', _remove_child)
 
     async def loop_iteration(self):
         """
@@ -153,7 +178,7 @@ class Controller:
         return True if shoult stop
         do reinitialization here if required
         """
-        log.exception(f'Exception in loop: {self} {exception}')
+        self.log.exception(f'Exception in loop: {self} {exception}')
 
     def serialize(self, out):
         """
@@ -193,7 +218,7 @@ class Controller:
         task.add_done_callback(__maybe_remove)
 
     def set_state(self, value):
-        log.debug(f'{self} state changed: {self.state} -> {value}')
+        self.log.debug(f'{self} state changed: {self.state} -> {value}')
         self.state = value
         if self.debug:
             self.debug.track('state', str(value))
@@ -215,12 +240,12 @@ class Controller:
         return active_loop
 
     def trigger_stop(self):
-        log.debug(f'Triggering stop {self}')
+        self.log.debug(f'Triggering stop {self}')
 
         for name, loop in self.active_loops.items():
-            log.debug(f'Loop item {name} {loop=}')
+            self.log.debug(f'Loop item {name} {loop=}')
         for name, callback in self.on_stop_callbacks.items():
-            log.debug(f'Callback item {name} {callback=}')
+            self.log.debug(f'Callback item {name} {callback=}')
 
         if self.is_running:
             self.set_state(State.STOPPING)
@@ -245,20 +270,20 @@ class Controller:
                     self.set_state(State.SLEEP)
                     await self.timer.wait(self.get_loop_interval())
                 except CancelledError:
-                    log.debug(f'Cancelled loop: {self}')
+                    self.log.debug(f'Cancelled loop: {self}')
                     break
                 except Exception as e:
-                    log.debug('check should_stop')
+                    self.log.debug('check should_stop')
                     should_stop = await self._call_on_error(e)
                     if should_stop:
                         log.info(f'Stopping loop because of error: {self}')
                         break
                     self.set_state(State.BACKOFF)
                     timeout = self.get_retry_timeout()
-                    log.info(f'Retry in {timeout} seconds')
+                    self.log.info(f'Retry in {timeout} seconds')
                     await self.timer.wait(timeout)
         finally:
-            log.debug(f'Shielded shutdown in finally {self.state=}')
+            self.log.debug(f'Shielded shutdown in finally {self.state=}')
             await self._do_shutdown()
 
     async def _call_on_error(self, error) -> bool:
@@ -267,12 +292,12 @@ class Controller:
         try:
             should_stop = bool(await self.on_error(error))
         except Exception as e:
-            log.exception(f'Exception in on_error handler: {e}')
+            self.log.exception(f'Exception in on_error handler: {e}')
         return should_stop
 
     async def _do_shutdown(self):
         if active_loop := self.active_loops.get(ACTIVE_LOOP):
-            log.debug(f'is_cancelled={active_loop.cancelled()}')
+            self.log.debug(f'is_cancelled={active_loop.cancelled()}')
         self.set_state(State.STOPPING)
 
         await self.run_shielded_shutdown()
@@ -282,22 +307,22 @@ class Controller:
 
     async def run_shielded_shutdown(self):
         try:
-            log.info(f'shielded shutdown {self=}')
+            self.log.info(f'shielded shutdown {self=}')
             await shield(self.shutdown())
         except Exception:
-            log.exception('During shielded shutdown')
+            self.log.exception('During shielded shutdown')
 
     async def stop_tracked_tasks(self):
         wait_tasks = []
         for task_name, task in self.active_loops.items():
             if task_name != ACTIVE_LOOP and not task.done():
-                log.debug(f'is_cancelled={task.cancelled()}')
+                self.log.debug(f'is_cancelled={task.cancelled()}')
                 task.cancel()
                 wait_tasks.append(task)
         try:
             await asyncio.gather(*wait_tasks, return_exceptions=True)
         except Exception:
-            log.exception('During stopping active tasks')
+            self.log.exception('During stopping active tasks')
 
     async def run_on_stop_callbacks(self):
         for callback_name, callback in self.on_stop_callbacks.items():

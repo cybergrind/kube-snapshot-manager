@@ -31,46 +31,46 @@ def get_kube_controller(event, default_cluster=None) -> 'KubeController':
 async def refresh_debug(controller: 'WSController'):
     try:
         while True:
-            await send_debug(controller.sock)
+            await send_debug(controller)
             await asyncio.sleep(5)
     except RuntimeError:
-        log.debug('WS refresh_debug got RuntimeError')
+        controller.log.debug('WS refresh_debug got RuntimeError')
     except (WebSocketDisconnect, asyncio.CancelledError) as e:
-        log.debug(f'WS debug cancelled: {e}')
+        controller.log.debug(f'WS debug cancelled: {e}')
     finally:
         controller.trigger_stop()
 
 
-async def send_debug(sock: WebSocket, sections={}):
+async def send_debug(controller: 'WSController', sections={}):
     if not sections:
         kc1 = KUBE_CONTROLLER1.get()
         if not kc1:
-            await sock.send_text(json.dumps({'error': 'kube1 not configured'}))
+            await controller.sock.send_text(json.dumps({'error': 'kube1 not configured'}))
             return
         kc2 = KUBE_CONTROLLER2.get()
         if not kc2:
-            await sock.send_text(json.dumps({'error': 'kube2 not configured'}))
+            await controller.sock.send_text(json.dumps({'error': 'kube2 not configured'}))
             return
         debug_object = DEBUG_GLOBAL.get()
         sections = debug_object.serialize()
-    log.debug(f'{sections=}')
+    controller.log.debug(f'{sections=}')
     data = {
         'event': 'debug_info',
         'sections': sections,
     }
-    log.debug(f'debug {data=} {sock=}')
+    controller.log.debug(f'debug {data=} {controller.sock=}')
     try:
-        await sock.send_text(json.dumps(data))
+        await controller.sock.send_text(json.dumps(data))
     except RuntimeError:
         raise
     except Exception as e:
-        log.exception(f'WS debug error: {e}')
+        controller.log.exception(f'WS debug error: {e}')
         raise
 
 
 async def safe_send_debug(controller: 'WSController', sections={}):
     try:
-        await send_debug(controller.sock, sections)
+        await send_debug(controller, sections)
     except RuntimeError:
         log.info('WS safe_send_debug got RuntimeError')
         controller.trigger_stop()
@@ -94,7 +94,7 @@ class WSController(Controller):
                     return
                 await self.sock.send_text(event.json())
         except Exception as e:
-            log.exception(f'WS error: {e}')
+            self.log.exception(f'WS error: {e}')
         finally:
             self.trigger_stop()
 
@@ -102,7 +102,7 @@ class WSController(Controller):
         c = CONTROLLER.get()
         sock = self.sock
         if not c:
-            log.warning('AWS not configured')
+            self.log.warning('AWS not configured')
             await sock.close()
             self.trigger_stop()
             return
@@ -121,7 +121,7 @@ class WSController(Controller):
         try:
             while self.is_running:
                 msg = await sock.receive_json()
-                log.debug(f'WS got {msg=}')
+                self.log.debug(f'WS got {msg=}')
                 if msg['event'] == 'get_snapshots':
                     await c.describe_snapshots(reset=msg.get('force'))
                 elif msg['event'] == 'snapshot_fill_tags':
@@ -133,7 +133,7 @@ class WSController(Controller):
                     pv_by_volume = await kc.pv_by_volume()
                     pv = pv_by_volume.get(volume_id)
                     if not pv:
-                        log.warning(f'No PV for {volume_id=}')
+                        self.log.warning(f'No PV for {volume_id=}')
                         continue
                     claim_ref = pv.spec.claim_ref
                     tags = {'namespace': claim_ref.namespace, 'name': claim_ref.name}
@@ -175,23 +175,23 @@ class WSController(Controller):
                         asyncio.create_task(safe_send_debug(self, data))
 
                     def _cancel_notify():
-                        log.debug(f'Cancel notify: {_send_debug} + {self.debug}')
+                        self.log.debug(f'Cancel notify: {_send_debug} + {self.debug}')
                         debug_global.remove_notify(_send_debug)
 
                     debug_global.add_notify(_send_debug)
                     self.add_stop_callback('debug_cancel_notify', _cancel_notify)
                 else:
-                    log.info(f'Unknown message: {msg}')
+                    self.log.info(f'Unknown message: {msg}')
         except (WebSocketDisconnect, RuntimeError):
             pass
         except Exception as e:
-            log.exception(f'WS error: {e}')
+            self.log.exception(f'WS error: {e}')
             raise
         finally:
             self.trigger_stop()
 
     async def on_error(self, exception):
-        log.exception(f'WS error: {exception}')
+        self.log.exception(f'WS error: {exception}')
         if self.sock.client_state == WebSocketState.DISCONNECTED:
             self.set_state(State.STOPPING)
             return True
